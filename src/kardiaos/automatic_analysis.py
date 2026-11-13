@@ -95,3 +95,12 @@ def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,in
         result['status']='completed'
     except Cancelled: result['status']='cancelled'
     return result
+
+
+def analysis_key(recording):
+    """Cache only the exact signal, timebase, contact and metadata; never persist it."""
+    import hashlib
+    digest=hashlib.sha256(json.dumps(recording.meta,sort_keys=True).encode())
+    for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
+        digest.update(values[:recording.n].tobytes())
+    return digest.hexdigest()

@@ -3,7 +3,7 @@ import json
 from PySide6.QtCore import Qt,QThread,Signal,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QWidget,
     QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox)
-from .automatic_analysis import automatic_analysis
+from .automatic_analysis import automatic_analysis,analysis_key
 
 
 def label(text):
@@ -57,6 +57,7 @@ class AutomaticAnalysisDialog(QDialog):
     def start(self):
         if self.busy() or self.closing:return
         self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
+        if self.recording is not None:self.recording._automatic_analysis=None
         self.reference_button.setEnabled(False);self.run_button.setEnabled(False);self.export_button.setEnabled(False);self.cancel_button.setEnabled(True)
         self.status.setText('Calculando medições e verificando entradas…')
         self.thread=AutomaticThread(self.recording,self);self.thread.update.connect(self.update_result);self.thread.result_ready.connect(self.on_result);self.thread.finished.connect(self.on_worker_finished);self.thread.start()
@@ -83,6 +84,8 @@ class AutomaticAnalysisDialog(QDialog):
         self.score_table.resizeRowToContents(row)
     def on_result(self,result):
         self.result=result;self.export_button.setEnabled(True)
+        if self.recording is not None and result['status']=='completed':
+            self.recording._automatic_analysis=result;self.recording._automatic_analysis_key=analysis_key(self.recording)
         self.status.setText({'completed':f"Concluído: {sum(bool(v.get('scores')) for v in result.get('scenarios',[]))} cenários com escores. Resultados experimentais, sem confirmação clínica.",'cancelled':'Interrompido. Resultados parciais identificados; nenhuma captura alterada.'}.get(result['status'],result.get('reason','Falha local.')))
     def on_worker_finished(self):
         self.reference_button.setEnabled(True);self.run_button.setEnabled(True);self.cancel_button.setEnabled(False)

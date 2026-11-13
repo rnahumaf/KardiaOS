@@ -63,7 +63,7 @@ Não há calibração estatística nem validação de domínio KardiaMobile.
 
 DI em linhas utiliza janelas contíguas de 10 s a 25 mm/s ou 5 s a 50 mm/s. Até
 seis linhas podem caber, conforme a amplitude e o ganho; a altura é planejada
-antes do desenho. Os limites de cada faixa e o restante não impresso são
+antes do desenho. Na prévia, um painel inferior reserva espaço para FC/P/QRS/QT/QTcF e três maiores scores por cenário. Isso reduz a área disponível ao traçado sem mudar o ganho ou a velocidade. Todos os cenários são listados, inclusive indisponibilidade; rótulos longos podem ser abreviados e continuam completos na análise. O processamento inicia automaticamente ao abrir a prévia e pode ser interrompido fechando-a. A impressão aguarda sua conclusão. As janelas da análise são explícitas e podem diferir do trecho impresso. Os limites de cada faixa e o restante não impresso são
 informados. Nenhuma amostra é duplicada/perdida nas fronteiras do trecho impresso.
 A grade é física, sem ajuste horizontal/vertical para caber. O pulso ocupa 200 ms
 e 1 mV segundo a escala declarada, que pode continuar provisória. Amplitude que

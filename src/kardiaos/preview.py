@@ -8,6 +8,7 @@ from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDoubleSpinBox, QFileDialog, QMessageBox, QSizePolicy, QComboBox)
 from .report import pdf_bytes, page_plan
+from .automatic_analysis import analysis_key
 
 
 def render_page(data, size=QSize(1404, 992)):
@@ -61,12 +62,18 @@ def print_page(data, printer):
 
 
 class PrintPreview(QDialog):
-    def __init__(self, recording, speed=25, gain=10, raw=False, parent=None):
+    def __init__(self, recording, speed=25, gain=10, raw=False, parent=None, autostart=True):
         super().__init__(parent)
         self.setWindowTitle("KardiaOS — Prévia de impressão")
         self.resize(1120, 850)
         self.setMinimumSize(800, 600)
         self.recording, self.speed, self.gain, self.raw = recording, speed, gain, raw
+        self.analysis=getattr(recording,"_automatic_analysis",None)
+        if getattr(recording,"_automatic_analysis_key",None)!=analysis_key(recording):self.analysis=None
+        if self.analysis is None:
+            from .measurements import measure_recording
+            self.analysis=dict(status="running",measurements=measure_recording(recording),scenarios=[],unavailable=[])
+        self.thread=None;self.closing=False
         self.data = b""
         self.page_image = None
         layout = QVBoxLayout(self)
@@ -113,11 +120,11 @@ class PrintPreview(QDialog):
         save = self.save_button = QPushButton("Salvar PDF")
         save.clicked.connect(self.save_pdf)
         self.print_button = QPushButton("Imprimir 1 folha")
-        self.print_button.setEnabled(self.printers.count() > 0)
+        self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")
         self.print_button.setObjectName("primary")
         self.print_button.clicked.connect(self.print_current)
         close = QPushButton("Fechar")
-        close.clicked.connect(self.accept)
+        close.clicked.connect(self.reject)
         for button in (save, self.print_button, close):
             bottom.addWidget(button)
         layout.addLayout(bottom)
@@ -126,17 +133,43 @@ class PrintPreview(QDialog):
         self.offset.valueChanged.connect(self.refresh)
         self.layout_choice.currentIndexChanged.connect(self.refresh)
         self.refresh()
+        if autostart and self.analysis['status']!='completed':
+            from .analysis_dialog import AutomaticThread
+            self.thread=AutomaticThread(recording,self)
+            self.thread.result_ready.connect(self.analysis_done)
+            self.thread.finished.connect(self.worker_finished)
+            self.thread.start()
+
+    def analysis_done(self,result):
+        if 'measurements' not in result:result['measurements']=self.analysis['measurements']
+        self.analysis=result
+        if result['status']=='completed':
+            self.recording._automatic_analysis=result;self.recording._automatic_analysis_key=analysis_key(self.recording)
+        if not self.closing:self.refresh()
+
+    def worker_finished(self):
+        if self.closing:super().reject()
+
+    def reject(self):
+        self.closing=True
+        if self.thread is not None and self.thread.isRunning():self.thread.requestInterruption();return
+        super().reject()
+
+    def closeEvent(self,event):
+        self.closing=True
+        if self.thread is not None and self.thread.isRunning():self.thread.requestInterruption();event.ignore()
+        else:event.accept()
 
     def refresh(self):
         try:
             choice = self.layout_choice.currentData()
-            plan = page_plan(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice)
-            self.data = pdf_bytes(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice)
+            plan = page_plan(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice, self.analysis)
+            self.data = pdf_bytes(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice, self.analysis)
             self.page_image = render_page(self.data)
             self.span_note.setText(f"{len(plan['rows'])} faixas · até {plan['end']-plan['start']:.1f} s nesta folha · restante {plan['remaining_seconds']:.1f} s. Sem comprimir o tempo ou mudar o ganho.")
-            self.save_button.setEnabled(True)
-            self.print_button.setEnabled(self.printers.count() > 0)
-            self.status.setText("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF.")
+            self.save_button.setEnabled(self.analysis["status"]!="running")
+            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")
+            self.status.setText("Calculando analise local para a folha; aguarde. Fechar interrompe o processamento." if self.analysis["status"]=="running" else ("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF."))
             self.fit_page()
         except ValueError as exc:
             self.data = b""
@@ -158,7 +191,7 @@ class PrintPreview(QDialog):
         self.fit_page()
 
     def save_pdf(self):
-        if not self.data:
+        if not self.data or self.analysis["status"]=="running":
             return
         filename, _ = QFileDialog.getSaveFileName(self, "Salvar uma folha A4", "ecg.kardiaos.pdf", "PDF (*.pdf)")
         if filename:
@@ -168,7 +201,7 @@ class PrintPreview(QDialog):
                 QMessageBox.warning(self, "Falha ao salvar PDF", str(exc))
 
     def print_current(self):
-        if not self.data:
+        if not self.data or self.analysis["status"]=="running":
             return
         self.print_button.setEnabled(False)
         try:
@@ -182,4 +215,4 @@ class PrintPreview(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, "Falha na impressão", str(exc))
         finally:
-            self.print_button.setEnabled(self.printers.count() > 0)
+            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")

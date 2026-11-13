@@ -11,7 +11,7 @@ from test_report import fixture
 
 def test_preview_is_opaque_light_and_prints_one_landscape_page(tmp_path):
     app = QApplication.instance() or QApplication([])
-    preview = PrintPreview(fixture())
+    preview = PrintPreview(fixture(),autostart=False)
     preview.show()
     app.processEvents()
     image = preview.page_image
@@ -47,7 +47,7 @@ def test_excerpt_control_cannot_exceed_last_sample():
     r = fixture(single=True)
     r.n -= 1
     r.meta['end'] = r.last_time
-    preview = PrintPreview(r)
+    preview = PrintPreview(r,autostart=False)
     preview.offset.setValue(preview.offset.maximum())
     assert preview.offset.value() < r.last_time - r.meta['start']
     assert len(PdfReader(io.BytesIO(preview.data)).pages) == 1

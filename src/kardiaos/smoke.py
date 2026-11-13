@@ -26,7 +26,7 @@ def check():
         save_recording(path, w.recording)
         result = load_recording(path)
         assert result.n == 900 and result.meta['synthetic']
-        preview = PrintPreview(result)
+        preview = PrintPreview(result,autostart=False)
         assert not preview.page_image.isNull()
         assert preview.page_image.pixelColor(0, 0).lightness() > 200
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -73,7 +73,7 @@ def check_research():
 
 def check_automatic():
     from .recording import Recording
-    from .automatic_analysis import automatic_analysis
+    from .automatic_analysis import automatic_analysis,analysis_key
     from .analysis_dialog import AutomaticAnalysisDialog
     from .report import page_plan, pdf_bytes
     from .measurements import measure_recording
@@ -94,5 +94,10 @@ def check_automatic():
     assert measure_recording(None)['metrics']['qtc_f']['value'] is None
     plan = page_plan(record, layout='di')
     assert plan['remaining_seconds'] < .01 and len(plan['rows']) >= 3
-    assert not render_page(pdf_bytes(record, layout='di')).isNull()
+    record._automatic_analysis=result;record._automatic_analysis_key=analysis_key(record)
+    preview=PrintPreview(record)
+    assert preview.analysis['status']=='completed' and preview.save_button.isEnabled()
+    assert not preview.page_image.isNull()
+    preview.close()
+    assert not render_page(pdf_bytes(record, layout='di',analysis=result)).isNull()
     dialog.close()

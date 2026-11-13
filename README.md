@@ -116,10 +116,10 @@ exploratório não modifica essa declaração nem os dados originais.
 Na prévia de impressão, **DI em linhas** distribui o trecho em linhas sucessivas
 numa folha A4. Velocidade, ganho, pulso de 1 mV/200 ms, intervalos de cada linha
 e tempo restante ficam explícitos. A 25 mm/s, uma captura usual de 30 s cabe em
-três linhas; altura/amplitude, ganho e 50 mm/s podem limitar o trecho que cabe.
+três linhas, com um painel de medições e hipóteses na mesma folha; altura/amplitude, ganho e 50 mm/s podem limitar o trecho que cabe.
 Nesse caso a prévia informa o restante. Não há compressão silenciosa nem
 recorte vertical: reduza o ganho quando o traçado não couber. Lacunas permanecem
-lacunas. O layout automático de seis derivações continua disponível.
+lacunas. O painel inclui FC, P, QRS, QT, QTcF e os três maiores scores de cada hipótese, com janelas explícitas e motivos de indisponibilidade. A análise é executada ao abrir a prévia, ou reutilizada quando já concluída para essa captura. Nomes longos podem ser abreviados no papel; a análise contém os rótulos completos. O layout automático de seis derivações continua disponível.
 
 Os checkpoints e o ambiente de pesquisa são opcionais, separados do instalador.
 Com Python 3.11, no código-fonte distribuído:
