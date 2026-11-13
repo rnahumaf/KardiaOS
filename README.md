@@ -29,8 +29,8 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
 - O PDF usa dimensões físicas A4 (297 × 210 mm), grade de 1/5 mm, velocidade
   de 25 ou 50 mm/s e ganho de 5, 10 ou 20 mm/mV. Imprima a 100%, sem ajustar à página.
   **Imprimir** e **Exportar PDF** abrem a prévia de uma única folha, com início
-  do trecho selecionável. A 25 mm/s, a parte superior mostra 5 segundos:
-  D1/D2/D3 à esquerda e aVF/aVL/aVR à direita. D2 contínua mostra até 10 segundos
+  do trecho selecionável. A 25 mm/s, a parte superior mostra as seis derivações:
+  D1/D2/D3 à esquerda e aVF/aVL/aVR à direita, com até 4,72 segundos por faixa. D2 contínua mostra até 10 segundos
   abaixo. A 50 mm/s, as durações caem pela metade, sem comprimir o eixo temporal.
   Com apenas D1 disponível no início selecionado, a folha contém somente D1.
   A prévia usa fundo opaco claro e seletor próprio de impressora, sem abrir o diálogo
@@ -80,38 +80,59 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Avaliação experimental local (0.3.0)
+## Análise automática local (0.4.0)
 
-Após abrir ou concluir uma captura, use **Avaliação experimental** na barra lateral.
-Há duas avaliações independentes: ECGFounder para I (150 saídas) e DeepPSP/CinC2021
-para I–II ou seis derivações de membros (21 saídas em cada checkpoint).
-Escolha uma janela contínua de 10 segundos. A tabela preserva os rótulos originais,
-permite busca e exportação JSON local. Não há interpretação automática como diagnóstico.
+Após abrir ou concluir uma captura, **Análise automática** calcula as medições
+experimentais de DI e avalia os modelos compatíveis no primeiro trecho contínuo
+de 10 segundos que passa nas verificações técnicas. Não se escolhe a janela
+pelo maior score. A interface separa informação do arquivo, medições e hipóteses
+das redes. É possível interromper, reavaliar e exportar o resultado localmente.
 
-Os scores sigmoid não são probabilidades calibradas. A integração não tem validação
-clínica no KardiaMobile. Sem referência documentada de amplitude e polaridade, o
-resultado é **inconclusivo**, sem scores. O botão **Registrar referência de escala**
-registra uma declaração do usuário; não mede nem verifica a referência. Não marque
-essa declaração apenas para desbloquear a análise. A calibração é da captura atual;
-salve-a explicitamente se quiser persistir seus metadados.
+As medições incluem FC por RR mediano, duração de P, QRS, QT e QTc Fridericia,
+quando o sinal sustenta a delimitação. Campos indisponíveis mostram o motivo.
+São estimativas de uma heurística conservadora de template mediano com limites
+relativos, sem validação clínica. A base temporal é 300 Hz nominal; não houve
+verificação independente do relógio do aparelho. Não se deduz mV ou orientação
+a partir de durações ou scores.
 
-Os checkpoints são opcionais, separados do instalador. Para preparar outro computador,
-com Python 3.11 disponível, execute no código-fonte:
+ECGFounder usa I e preserva seus 150 rótulos; DeepPSP/CinC2021 tem checkpoints
+para I–II e seis derivações de membros, com 21 rótulos cada. Na ausência de uma
+referência declarada para a captura, o fluxo exploratório mostra **todas as
+hipóteses de sinais**, sem escolher uma como correta: I+/I− ou as quatro
+combinações de I/II. As demais derivações de membros são recalculadas para cada
+combinação. Não são geradas precordiais. Os cinco maiores scores de cada cenário
+são mostrados; a exportação contém todos, incluindo status parcial/interrompido.
+
+Scores sigmoid não são probabilidades, laudos ou diagnósticos. Não há validação
+clínica no KardiaMobile. Q anormal não determina área inativa/infarto, e rótulos
+temporais não demonstram evolução entre exames. As observações de orientação
+de uma captura não são promovidas a calibração universal.
+
+O botão **Referência** mantém a análise dirigida anterior: ela fica inconclusiva
+sem referência documentada de amplitude/polaridade. A declaração do usuário não
+é medida pelo programa; não a marque para desbloquear resultados. O novo fluxo
+exploratório não modifica essa declaração nem os dados originais.
+
+Na prévia de impressão, **DI em linhas** distribui o trecho em linhas sucessivas
+numa folha A4. Velocidade, ganho, pulso de 1 mV/200 ms, intervalos de cada linha
+e tempo restante ficam explícitos. A 25 mm/s, uma captura usual de 30 s cabe em
+três linhas; altura/amplitude, ganho e 50 mm/s podem limitar o trecho que cabe.
+Nesse caso a prévia informa o restante. Não há compressão silenciosa nem
+recorte vertical: reduza o ganho quando o traçado não couber. Lacunas permanecem
+lacunas. O layout automático de seis derivações continua disponível.
+
+Os checkpoints e o ambiente de pesquisa são opcionais, separados do instalador.
+Com Python 3.11, no código-fonte distribuído:
 
 ```powershell
 python scripts/setup_research.py --target "C:\Users\SEU_USUARIO\AppData\Local\Programs\KardiaOS"
-python scripts/validate_research.py
 ```
 
-O primeiro comando instala o ambiente de pesquisa e baixa exclusivamente pesos públicos
-das fontes fixadas, conferindo SHA-256. O segundo testa o código-fonte e requer também
-configuração na raiz do repositório (execute setup sem `--target`). Para verificar a
-instalação configurada, execute `KardiaOS.exe --research-smoke-test`: usa somente
-sinais sintéticos, todos os três checkpoints e o bloqueio de escala não verificada.
-O aplicativo não baixa modelos durante a análise e não transmite ECGs.
-
-Contratos de entrada, pré-processamento, fontes, licenças e limites estão em
-[docs/research-models.md](docs/research-models.md).
+Somente esse setup explícito baixa dependências e pesos das fontes fixadas e
+confere SHA-256. O aplicativo não baixa modelos nem transmite ECGs na análise.
+O instalador recusa atualização se encontrar o KardiaOS em execução; salve e
+feche sua sessão manualmente antes de atualizar. Dados e preferências não são
+removidos. [Limites e métodos de 0.4.0](docs/automatic-analysis.md).
 
 ## Desenvolvimento
 

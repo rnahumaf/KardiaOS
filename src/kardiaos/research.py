@@ -35,7 +35,7 @@ def calibration_valid(recording):
             and evidence.get('mv_per_count') == meta.get('mv_per_count'))
 
 
-def inspect_window(recording, model_key, offset=0.0):
+def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True):
     model = catalog()['models'][model_key]
     result = {'model': model_key, 'name': model['name'], 'status': 'inconclusive',
               'reasons': [], 'scores': [], 'synthetic': bool(recording and recording.meta.get('synthetic'))}
@@ -49,7 +49,7 @@ def inspect_window(recording, model_key, offset=0.0):
     if not np.isfinite(offset) or offset < 0:
         reasons.append('Início do trecho inválido.')
         return result
-    if not result['synthetic'] and not calibration_valid(r):
+    if require_calibration and not result['synthetic'] and not calibration_valid(r):
         reasons.append('Escala e/ou polaridade não verificadas com referência documentada. Não são emitidos scores.')
     factor = r.meta.get('mv_per_count', 0)
     if not isinstance(factor, (int, float)) or not np.isfinite(factor) or factor <= 0:

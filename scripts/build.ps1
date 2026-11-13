@@ -13,6 +13,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar icone.' }
     & $python -m PyInstaller --noconfirm --clean --windowed --onedir --name KardiaOS --icon build/app.ico --paths src --add-data 'LICENSE;.' --add-data 'README.md;.' --add-data 'THIRD_PARTY.md;.' --add-data 'build/licenses;licenses' --add-data 'src/kardiaos/assets;kardiaos/assets' --exclude-module PySide6.QtWebEngineCore --exclude-module PySide6.QtWebEngineWidgets --exclude-module tkinter --exclude-module pytest run.py
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar executavel.' }
+    & $python scripts\stage_source.py
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar fontes.' }
     $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
     & $iscc installer\KardiaOS.iss
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar instalador.' }

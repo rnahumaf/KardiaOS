@@ -7,7 +7,7 @@ from PySide6.QtPdf import QPdfDocument
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDoubleSpinBox, QFileDialog, QMessageBox, QSizePolicy, QComboBox)
-from .report import pdf_bytes
+from .report import pdf_bytes, page_plan
 
 
 def render_page(data, size=QSize(1404, 992)):
@@ -80,10 +80,17 @@ class PrintPreview(QDialog):
         max_offset = math.floor(max(0, end - float(recording.meta["start"]) - 1 / 300) * 10) / 10
         self.offset.setRange(0, max_offset)
         top.addWidget(self.offset)
+        self.layout_choice = QComboBox()
+        self.layout_choice.addItem("Automático", "auto")
+        self.layout_choice.addItem("DI em linhas", "di")
+        self.layout_choice.addItem("Seis derivações", "six")
+        top.addWidget(self.layout_choice)
         top.addStretch()
         top.addWidget(QLabel(f"1 folha · A4 paisagem · {speed:g} mm/s · {gain:g} mm/mV"))
         layout.addLayout(top)
-        layout.addWidget(QLabel(f"Faixa contínua: até {250 / speed:g} s. O arquivo bruto mantém toda a gravação."))
+        self.span_note = QLabel("O bruto completo é preservado.")
+        self.span_note.setWordWrap(True)
+        layout.addWidget(self.span_note)
         destinations = QHBoxLayout()
         destinations.addWidget(QLabel("Impressora"))
         self.printers = QComboBox()
@@ -103,7 +110,7 @@ class PrintPreview(QDialog):
         bottom = QHBoxLayout()
         bottom.addWidget(QLabel("Tamanho real (100%), sem ajustar à página."))
         bottom.addStretch()
-        save = QPushButton("Salvar PDF")
+        save = self.save_button = QPushButton("Salvar PDF")
         save.clicked.connect(self.save_pdf)
         self.print_button = QPushButton("Imprimir 1 folha")
         self.print_button.setEnabled(self.printers.count() > 0)
@@ -117,12 +124,27 @@ class PrintPreview(QDialog):
         self.status = QLabel("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF.")
         layout.addWidget(self.status)
         self.offset.valueChanged.connect(self.refresh)
+        self.layout_choice.currentIndexChanged.connect(self.refresh)
         self.refresh()
 
     def refresh(self):
-        self.data = pdf_bytes(self.recording, self.speed, self.gain, self.raw, self.offset.value())
-        self.page_image = render_page(self.data)
-        self.fit_page()
+        try:
+            choice = self.layout_choice.currentData()
+            plan = page_plan(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice)
+            self.data = pdf_bytes(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice)
+            self.page_image = render_page(self.data)
+            self.span_note.setText(f"{len(plan['rows'])} faixas · até {plan['end']-plan['start']:.1f} s nesta folha · restante {plan['remaining_seconds']:.1f} s. Sem comprimir o tempo ou mudar o ganho.")
+            self.save_button.setEnabled(True)
+            self.print_button.setEnabled(self.printers.count() > 0)
+            self.status.setText("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF.")
+            self.fit_page()
+        except ValueError as exc:
+            self.data = b""
+            self.page_image = None
+            self.page.clear()
+            self.status.setText(str(exc))
+            self.save_button.setEnabled(False)
+            self.print_button.setEnabled(False)
 
     def fit_page(self):
         if self.page_image is not None:
@@ -136,6 +158,8 @@ class PrintPreview(QDialog):
         self.fit_page()
 
     def save_pdf(self):
+        if not self.data:
+            return
         filename, _ = QFileDialog.getSaveFileName(self, "Salvar uma folha A4", "ecg.kardiaos.pdf", "PDF (*.pdf)")
         if filename:
             try:
@@ -144,6 +168,8 @@ class PrintPreview(QDialog):
                 QMessageBox.warning(self, "Falha ao salvar PDF", str(exc))
 
     def print_current(self):
+        if not self.data:
+            return
         self.print_button.setEnabled(False)
         try:
             info = QPrinterInfo.printerInfo(self.printers.currentText())

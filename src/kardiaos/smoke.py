@@ -69,3 +69,30 @@ def check_research():
         result = analyze(record, key)
         assert result['status'] == 'inconclusive' and result['scores'] == []
     dialog.close()
+
+
+def check_automatic():
+    from .recording import Recording
+    from .automatic_analysis import automatic_analysis
+    from .analysis_dialog import AutomaticAnalysisDialog
+    from .report import page_plan, pdf_bytes
+    from .measurements import measure_recording
+    import numpy as np
+    record = Recording(synthetic=True)
+    record.append(0, synthetic_pairs(0, 9300), good=True)
+    record.meta.update(start=1.0, end=record.last_time)
+    before = record.raw[:record.n].copy()
+    result = automatic_analysis(record)
+    assert result['status'] == 'completed'
+    assert len(result['scenarios']) == 10
+    assert all(v['scores'] and v['status'] == 'synthetic' for v in result['scenarios'])
+    np.testing.assert_array_equal(before, record.raw[:record.n])
+    dialog = AutomaticAnalysisDialog(record, autostart=False)
+    dialog.update_result(dict(kind='measurements', value=result['measurements']))
+    for item in result['scenarios']: dialog.update_result(dict(kind='scenario', value=item))
+    assert dialog.score_table.rowCount() == 50
+    assert measure_recording(None)['metrics']['qtc_f']['value'] is None
+    plan = page_plan(record, layout='di')
+    assert plan['remaining_seconds'] < .01 and len(plan['rows']) >= 3
+    assert not render_page(pdf_bytes(record, layout='di')).isNull()
+    dialog.close()

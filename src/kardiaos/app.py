@@ -69,7 +69,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.3.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.4.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -177,7 +177,7 @@ class Window(QMainWindow):
         sidebar.addWidget(self.detail)
         self.metrics = label("Nenhuma amostra recebida", "muted", True)
         sidebar.addWidget(self.metrics)
-        self.research_button = QPushButton("Avaliação experimental")
+        self.research_button = QPushButton("Análise automática")
         self.research_button.clicked.connect(self.open_research)
         sidebar.addWidget(self.research_button)
         sidebar.addSpacing(8)
@@ -559,8 +559,8 @@ class Window(QMainWindow):
     def open_research(self):
         if self.live:
             return
-        from .research_dialog import ResearchDialog
-        ResearchDialog(self.recording, self).exec()
+        from .analysis_dialog import AutomaticAnalysisDialog
+        AutomaticAnalysisDialog(self.recording, self).exec()
 
     def report(self):
         return pdf_bytes(self.recording, self.speed.currentData(), self.gain.currentData(), self.raw_check.isChecked())
@@ -640,6 +640,8 @@ def main():
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--start", action="store_true")
     parser.add_argument("--diagnostic", action="store_true")
+    parser.add_argument("--validation-output", help=argparse.SUPPRESS)
+    parser.add_argument("--automatic-smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--research-smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -649,14 +651,19 @@ def main():
     app.setApplicationName("KardiaOS")
     app.setFont(QFont("Segoe UI", 10))
     app.setStyleSheet(STYLE)
-    if args.research_smoke_test:
-        from .smoke import check_research
-        check_research()
-        return
-    if args.smoke_test:
-        from .smoke import check
-        check()
-        return
+    if args.smoke_test or args.research_smoke_test or args.automatic_smoke_test:
+        import json
+        from . import __version__
+        try:
+            from .smoke import check, check_research, check_automatic
+            selected = check_automatic if args.automatic_smoke_test else check_research if args.research_smoke_test else check
+            selected()
+            outcome = dict(status="passed", version=__version__, synthetic_only=True)
+        except Exception as exc:
+            outcome = dict(status="failed", version=__version__, error=type(exc).__name__ + ": " + str(exc), synthetic_only=True)
+        if args.validation_output:
+            Path(args.validation_output).write_text(json.dumps(outcome, ensure_ascii=False, indent=2), encoding="utf-8")
+        sys.exit(0 if outcome["status"] == "passed" else 1)
     window = Window(args.demo, args.diagnostic)
     window.show()
     if args.start:
