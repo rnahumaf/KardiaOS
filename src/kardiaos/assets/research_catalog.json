@@ -1,0 +1,873 @@
+{
+  "schema": 1,
+  "models": {
+    "ecgfounder_1l": {
+      "name": "ECGFounder · 1 derivação",
+      "filename": "1_lead_ECGFounder.pth",
+      "leads": [
+        "I"
+      ],
+      "labels": [
+        {
+          "code": "ECGF-000",
+          "name": "ABNORMAL ECG"
+        },
+        {
+          "code": "ECGF-001",
+          "name": "NORMAL SINUS RHYTHM"
+        },
+        {
+          "code": "ECGF-002",
+          "name": "NORMAL ECG"
+        },
+        {
+          "code": "ECGF-003",
+          "name": "SINUS RHYTHM"
+        },
+        {
+          "code": "ECGF-004",
+          "name": "SINUS BRADYCARDIA"
+        },
+        {
+          "code": "ECGF-005",
+          "name": "ATRIAL FIBRILLATION"
+        },
+        {
+          "code": "ECGF-006",
+          "name": "SINUS TACHYCARDIA"
+        },
+        {
+          "code": "ECGF-007",
+          "name": "otherwise normal ecg"
+        },
+        {
+          "code": "ECGF-008",
+          "name": "LEFT AXIS DEVIATION"
+        },
+        {
+          "code": "ECGF-009",
+          "name": "PREMATURE VENTRICULAR COMPLEXES"
+        },
+        {
+          "code": "ECGF-010",
+          "name": "BORDERLINE ECG"
+        },
+        {
+          "code": "ECGF-011",
+          "name": "RIGHT BUNDLE BRANCH BLOCK"
+        },
+        {
+          "code": "ECGF-012",
+          "name": "SEPTAL INFARCT"
+        },
+        {
+          "code": "ECGF-013",
+          "name": "LEFT ATRIAL ENLARGEMENT"
+        },
+        {
+          "code": "ECGF-014",
+          "name": "NONSPECIFIC T WAVE ABNORMALITY"
+        },
+        {
+          "code": "ECGF-015",
+          "name": "LOW VOLTAGE QRS"
+        },
+        {
+          "code": "ECGF-016",
+          "name": "PREMATURE ATRIAL COMPLEXES"
+        },
+        {
+          "code": "ECGF-017",
+          "name": "ANTERIOR INFARCT"
+        },
+        {
+          "code": "ECGF-018",
+          "name": "INCOMPLETE RIGHT BUNDLE BRANCH BLOCK"
+        },
+        {
+          "code": "ECGF-019",
+          "name": "PREMATURE SUPRAVENTRICULAR COMPLEXES"
+        },
+        {
+          "code": "ECGF-020",
+          "name": "LEFT BUNDLE BRANCH BLOCK"
+        },
+        {
+          "code": "ECGF-021",
+          "name": "NONSPECIFIC T WAVE ABNORMALITY NOW EVIDENT IN"
+        },
+        {
+          "code": "ECGF-022",
+          "name": "NONSPECIFIC T WAVE ABNORMALITY NO LONGER EVIDENT IN"
+        },
+        {
+          "code": "ECGF-023",
+          "name": "T WAVE INVERSION NOW EVIDENT IN"
+        },
+        {
+          "code": "ECGF-024",
+          "name": "LATERAL INFARCT"
+        },
+        {
+          "code": "ECGF-025",
+          "name": "NONSPECIFIC ST ABNORMALITY"
+        },
+        {
+          "code": "ECGF-026",
+          "name": "LEFT VENTRICULAR HYPERTROPHY"
+        },
+        {
+          "code": "ECGF-027",
+          "name": "T WAVE INVERSION NO LONGER EVIDENT IN"
+        },
+        {
+          "code": "ECGF-028",
+          "name": "WITH RAPID VENTRICULAR RESPONSE"
+        },
+        {
+          "code": "ECGF-029",
+          "name": "QT HAS SHORTENED"
+        },
+        {
+          "code": "ECGF-030",
+          "name": "QT HAS LENGTHENED"
+        },
+        {
+          "code": "ECGF-031",
+          "name": "FUSION COMPLEXES"
+        },
+        {
+          "code": "ECGF-032",
+          "name": "ATRIAL FLUTTER"
+        },
+        {
+          "code": "ECGF-033",
+          "name": "MARKED SINUS BRADYCARDIA"
+        },
+        {
+          "code": "ECGF-034",
+          "name": "WITH SINUS ARRHYTHMIA"
+        },
+        {
+          "code": "ECGF-035",
+          "name": "NONSPECIFIC ST AND T WAVE ABNORMALITY"
+        },
+        {
+          "code": "ECGF-036",
+          "name": "LEFT ANTERIOR FASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-037",
+          "name": "RIGHT AXIS DEVIATION"
+        },
+        {
+          "code": "ECGF-038",
+          "name": "ECTOPIC ATRIAL RHYTHM"
+        },
+        {
+          "code": "ECGF-039",
+          "name": "UNDETERMINED RHYTHM"
+        },
+        {
+          "code": "ECGF-040",
+          "name": "ANTEROSEPTAL INFARCT"
+        },
+        {
+          "code": "ECGF-041",
+          "name": "RIGHTWARD AXIS"
+        },
+        {
+          "code": "ECGF-042",
+          "name": "ST NOW DEPRESSED IN"
+        },
+        {
+          "code": "ECGF-043",
+          "name": "WITH SHORT PR"
+        },
+        {
+          "code": "ECGF-044",
+          "name": "WITH MARKED SINUS ARRHYTHMIA"
+        },
+        {
+          "code": "ECGF-045",
+          "name": "ST NO LONGER DEPRESSED IN"
+        },
+        {
+          "code": "ECGF-046",
+          "name": "INVERTED T WAVES HAVE REPLACED NONSPECIFIC T WAVE ABNORMALITY IN"
+        },
+        {
+          "code": "ECGF-047",
+          "name": "NON-SPECIFIC CHANGE IN ST SEGMENT IN"
+        },
+        {
+          "code": "ECGF-048",
+          "name": "NONSPECIFIC T WAVE ABNORMALITY HAS REPLACED INVERTED T WAVES IN"
+        },
+        {
+          "code": "ECGF-049",
+          "name": "JUNCTIONAL RHYTHM"
+        },
+        {
+          "code": "ECGF-050",
+          "name": "ELECTRONIC ATRIAL PACEMAKER"
+        },
+        {
+          "code": "ECGF-051",
+          "name": "ABERRANT CONDUCTION"
+        },
+        {
+          "code": "ECGF-052",
+          "name": "ELECTRONIC VENTRICULAR PACEMAKER"
+        },
+        {
+          "code": "ECGF-053",
+          "name": "T WAVE INVERSION LESS EVIDENT IN"
+        },
+        {
+          "code": "ECGF-054",
+          "name": "ANTEROLATERAL INFARCT"
+        },
+        {
+          "code": "ECGF-055",
+          "name": "WITH REPOLARIZATION ABNORMALITY"
+        },
+        {
+          "code": "ECGF-056",
+          "name": "RSR' OR QR PATTERN IN V1 SUGGESTS RIGHT VENTRICULAR CONDUCTION DELAY"
+        },
+        {
+          "code": "ECGF-057",
+          "name": "T WAVE INVERSION MORE EVIDENT IN"
+        },
+        {
+          "code": "ECGF-058",
+          "name": "WIDE QRS RHYTHM"
+        },
+        {
+          "code": "ECGF-059",
+          "name": "WITH PREMATURE VENTRICULAR OR ABERRANTLY CONDUCTED COMPLEXES"
+        },
+        {
+          "code": "ECGF-060",
+          "name": "RIGHT ATRIAL ENLARGEMENT"
+        },
+        {
+          "code": "ECGF-061",
+          "name": "INFERIOR INFARCT"
+        },
+        {
+          "code": "ECGF-062",
+          "name": "INCOMPLETE LEFT BUNDLE BRANCH BLOCK"
+        },
+        {
+          "code": "ECGF-063",
+          "name": "VOLTAGE CRITERIA FOR LEFT VENTRICULAR HYPERTROPHY"
+        },
+        {
+          "code": "ECGF-064",
+          "name": "OR DIGITALIS EFFECT"
+        },
+        {
+          "code": "ECGF-065",
+          "name": "BIFASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-066",
+          "name": "ST NO LONGER ELEVATED IN"
+        },
+        {
+          "code": "ECGF-067",
+          "name": "WITH SLOW VENTRICULAR RESPONSE"
+        },
+        {
+          "code": "ECGF-068",
+          "name": "ST ELEVATION NOW PRESENT IN"
+        },
+        {
+          "code": "ECGF-069",
+          "name": "PREMATURE ECTOPIC COMPLEXES"
+        },
+        {
+          "code": "ECGF-070",
+          "name": "LEFT POSTERIOR FASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-071",
+          "name": "T WAVE AMPLITUDE HAS DECREASED IN"
+        },
+        {
+          "code": "ECGF-072",
+          "name": "WITH A COMPETING JUNCTIONAL PACEMAKER"
+        },
+        {
+          "code": "ECGF-073",
+          "name": "RIGHT SUPERIOR AXIS DEVIATION"
+        },
+        {
+          "code": "ECGF-074",
+          "name": "BIATRIAL ENLARGEMENT"
+        },
+        {
+          "code": "ECGF-075",
+          "name": "VENTRICULAR-PACED RHYTHM"
+        },
+        {
+          "code": "ECGF-076",
+          "name": "ATRIAL-PACED RHYTHM"
+        },
+        {
+          "code": "ECGF-077",
+          "name": "T WAVE AMPLITUDE HAS INCREASED IN"
+        },
+        {
+          "code": "ECGF-078",
+          "name": "WITH QRS WIDENING"
+        },
+        {
+          "code": "ECGF-079",
+          "name": "WITH 1ST DEGREE AV BLOCK"
+        },
+        {
+          "code": "ECGF-080",
+          "name": "PROLONGED QT"
+        },
+        {
+          "code": "ECGF-081",
+          "name": "WITH PROLONGED AV CONDUCTION"
+        },
+        {
+          "code": "ECGF-082",
+          "name": "RIGHT VENTRICULAR HYPERTROPHY"
+        },
+        {
+          "code": "ECGF-083",
+          "name": "WITH QRS WIDENING AND REPOLARIZATION ABNORMALITY"
+        },
+        {
+          "code": "ECGF-084",
+          "name": "ATRIAL-SENSED VENTRICULAR-PACED RHYTHM"
+        },
+        {
+          "code": "ECGF-085",
+          "name": "AV SEQUENTIAL OR DUAL CHAMBER ELECTRONIC PACEMAKER"
+        },
+        {
+          "code": "ECGF-086",
+          "name": "PULMONARY DISEASE PATTERN"
+        },
+        {
+          "code": "ECGF-087",
+          "name": "ACUTE MI / STEMI"
+        },
+        {
+          "code": "ECGF-088",
+          "name": "INFERIOR-POSTERIOR INFARCT"
+        },
+        {
+          "code": "ECGF-089",
+          "name": "NONSPECIFIC INTRAVENTRICULAR CONDUCTION DELAY"
+        },
+        {
+          "code": "ECGF-090",
+          "name": "PREMATURE VENTRICULAR AND FUSION COMPLEXES"
+        },
+        {
+          "code": "ECGF-091",
+          "name": "IN A PATTERN OF BIGEMINY"
+        },
+        {
+          "code": "ECGF-092",
+          "name": "AV DUAL-PACED RHYTHM"
+        },
+        {
+          "code": "ECGF-093",
+          "name": "SUPRAVENTRICULAR TACHYCARDIA"
+        },
+        {
+          "code": "ECGF-094",
+          "name": "VENTRICULAR-PACED COMPLEXES"
+        },
+        {
+          "code": "ECGF-095",
+          "name": "WIDE QRS TACHYCARDIA"
+        },
+        {
+          "code": "ECGF-096",
+          "name": "RSR' PATTERN IN V1"
+        },
+        {
+          "code": "ECGF-097",
+          "name": "ST LESS DEPRESSED IN"
+        },
+        {
+          "code": "ECGF-098",
+          "name": "VENTRICULAR TACHYCARDIA"
+        },
+        {
+          "code": "ECGF-099",
+          "name": "EARLY REPOLARIZATION"
+        },
+        {
+          "code": "ECGF-100",
+          "name": "ST MORE DEPRESSED IN"
+        },
+        {
+          "code": "ECGF-101",
+          "name": "ANTEROLATERAL LEADS"
+        },
+        {
+          "code": "ECGF-102",
+          "name": "ELECTRONIC DEMAND PACING"
+        },
+        {
+          "code": "ECGF-103",
+          "name": "RBBB AND LEFT ANTERIOR FASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-104",
+          "name": "LATERAL INJURY PATTERN"
+        },
+        {
+          "code": "ECGF-105",
+          "name": "BIVENTRICULAR PACEMAKER DETECTED"
+        },
+        {
+          "code": "ECGF-106",
+          "name": "SUSPECT UNSPECIFIED PACEMAKER FAILURE"
+        },
+        {
+          "code": "ECGF-107",
+          "name": "WOLFF-PARKINSON-WHITE"
+        },
+        {
+          "code": "ECGF-108",
+          "name": "WITH VENTRICULAR ESCAPE COMPLEXES"
+        },
+        {
+          "code": "ECGF-109",
+          "name": "INFERIOR INJURY PATTERN"
+        },
+        {
+          "code": "ECGF-110",
+          "name": "CONSIDER RIGHT VENTRICULAR INVOLVEMENT IN ACUTE INFERIOR INFARCT"
+        },
+        {
+          "code": "ECGF-111",
+          "name": "ST ELEVATION HAS REPLACED ST DEPRESSION IN"
+        },
+        {
+          "code": "ECGF-112",
+          "name": "NONSPECIFIC INTRAVENTRICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-113",
+          "name": "MASKED BY FASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-114",
+          "name": "PEDIATRIC ECG ANALYSIS"
+        },
+        {
+          "code": "ECGF-115",
+          "name": "BLOCKED"
+        },
+        {
+          "code": "ECGF-116",
+          "name": "WITH UNDETERMINED RHYTHM IRREGULARITY"
+        },
+        {
+          "code": "ECGF-117",
+          "name": "LEFTWARD AXIS"
+        },
+        {
+          "code": "ECGF-118",
+          "name": "WITH 2ND DEGREE SA BLOCK MOBITZ I"
+        },
+        {
+          "code": "ECGF-119",
+          "name": "ACUTE"
+        },
+        {
+          "code": "ECGF-120",
+          "name": "ABNORMAL LEFT AXIS DEVIATION"
+        },
+        {
+          "code": "ECGF-121",
+          "name": "WITH COMPLETE HEART BLOCK"
+        },
+        {
+          "code": "ECGF-122",
+          "name": "NO P-WAVES FOUND"
+        },
+        {
+          "code": "ECGF-123",
+          "name": "ST LESS ELEVATED IN"
+        },
+        {
+          "code": "ECGF-124",
+          "name": "WITH RETROGRADE CONDUCTION"
+        },
+        {
+          "code": "ECGF-125",
+          "name": "ST MORE ELEVATED IN"
+        },
+        {
+          "code": "ECGF-126",
+          "name": "JUNCTIONAL BRADYCARDIA"
+        },
+        {
+          "code": "ECGF-127",
+          "name": "WITH VARIABLE AV BLOCK"
+        },
+        {
+          "code": "ECGF-128",
+          "name": "ANTERIOR INJURY PATTERN"
+        },
+        {
+          "code": "ECGF-129",
+          "name": "WITH JUNCTIONAL ESCAPE COMPLEXES"
+        },
+        {
+          "code": "ECGF-130",
+          "name": "ACUTE MI"
+        },
+        {
+          "code": "ECGF-131",
+          "name": "ACUTE PERICARDITIS"
+        },
+        {
+          "code": "ECGF-132",
+          "name": "POSTERIOR INFARCT"
+        },
+        {
+          "code": "ECGF-133",
+          "name": "IDIOVENTRICULAR RHYTHM"
+        },
+        {
+          "code": "ECGF-134",
+          "name": "WITH 2ND DEGREE SA BLOCK MOBITZ II"
+        },
+        {
+          "code": "ECGF-135",
+          "name": "R IN AVL"
+        },
+        {
+          "code": "ECGF-136",
+          "name": "SINUS/ATRIAL CAPTURE"
+        },
+        {
+          "code": "ECGF-137",
+          "name": "AV DUAL-PACED COMPLEXES"
+        },
+        {
+          "code": "ECGF-138",
+          "name": "INFEROLATERAL INJURY PATTERN"
+        },
+        {
+          "code": "ECGF-139",
+          "name": "RBBB AND LEFT POSTERIOR FASCICULAR BLOCK"
+        },
+        {
+          "code": "ECGF-140",
+          "name": "ANTEROLATERAL INJURY PATTERN"
+        },
+        {
+          "code": "ECGF-141",
+          "name": "ATRIAL-PACED COMPLEXES"
+        },
+        {
+          "code": "ECGF-142",
+          "name": "WITH SINUS PAUSE"
+        },
+        {
+          "code": "ECGF-143",
+          "name": "BIVENTRICULAR HYPERTROPHY"
+        },
+        {
+          "code": "ECGF-144",
+          "name": "ABNORMAL RIGHT AXIS DEVIATION"
+        },
+        {
+          "code": "ECGF-145",
+          "name": "SUPRAVENTRICULAR COMPLEXES"
+        },
+        {
+          "code": "ECGF-146",
+          "name": "WITH 2ND DEGREE AV BLOCK MOBITZ I"
+        },
+        {
+          "code": "ECGF-147",
+          "name": "WITH 2:1 AV CONDUCTION"
+        },
+        {
+          "code": "ECGF-148",
+          "name": "WITH AV DISSOCIATION"
+        },
+        {
+          "code": "ECGF-149",
+          "name": "MULTIFOCAL ATRIAL TACHYCARDIA"
+        }
+      ],
+      "source": "https://github.com/PKUDigitalHealth/ECGFounder/tree/04edac702b61c91face519774ddcc0cd712fef23",
+      "checkpoint_url": "https://huggingface.co/PKUDigitalHealth/ECGFounder/resolve/d9b1793951b2342f5f7e84f1ac03cd37f8a08724/1_lead_ECGFounder.pth",
+      "license": "MIT",
+      "preprocessing": "300→500 Hz (resample_poly); notch 50 Hz/Q30; Butterworth 0,67–40 Hz ordem 4; mediana 201; z-score global eps 1e-8.",
+      "summary": "150 rótulos originais · I · janela de 10 s. Cabeça treinada preservada; não há ajuste fino. Rótulos de infarto e comparação temporal são saídas de pesquisa, sem confirmação clínica.",
+      "sha256": "f863a38897fb49a27fec7e44008ea3c7bdbd29c77fa4a02ecbb8c56df4f37603"
+    },
+    "deeppsp_2l": {
+      "name": "DeepPSP / CinC2021 · 2 derivações",
+      "filename": "2_lead_model.pth.tar",
+      "leads": [
+        "I",
+        "II"
+      ],
+      "labels": [
+        {
+          "code": "164889003",
+          "name": "atrial fibrillation",
+          "abbreviation": "AF"
+        },
+        {
+          "code": "164890007",
+          "name": "atrial flutter",
+          "abbreviation": "AFL"
+        },
+        {
+          "code": "6374002",
+          "name": "bundle branch block",
+          "abbreviation": "BBB"
+        },
+        {
+          "code": "733534002",
+          "name": "complete left bundle branch block",
+          "abbreviation": "CLBBB"
+        },
+        {
+          "code": "713427006",
+          "name": "complete right bundle branch block",
+          "abbreviation": "CRBBB"
+        },
+        {
+          "code": "270492004",
+          "name": "1st degree av block",
+          "abbreviation": "IAVB"
+        },
+        {
+          "code": "713426002",
+          "name": "incomplete right bundle branch block",
+          "abbreviation": "IRBBB"
+        },
+        {
+          "code": "445118002",
+          "name": "left anterior fascicular block",
+          "abbreviation": "LAnFB"
+        },
+        {
+          "code": "164947007",
+          "name": "prolonged pr interval",
+          "abbreviation": "LPR"
+        },
+        {
+          "code": "111975006",
+          "name": "prolonged qt interval",
+          "abbreviation": "LQT"
+        },
+        {
+          "code": "698252002",
+          "name": "nonspecific intraventricular conduction disorder",
+          "abbreviation": "NSIVCB"
+        },
+        {
+          "code": "426783006",
+          "name": "sinus rhythm",
+          "abbreviation": "NSR"
+        },
+        {
+          "code": "284470004",
+          "name": "premature atrial contraction",
+          "abbreviation": "PAC"
+        },
+        {
+          "code": "365413008",
+          "name": "poor R wave Progression",
+          "abbreviation": "PRWP"
+        },
+        {
+          "code": "427172004",
+          "name": "premature ventricular contractions",
+          "abbreviation": "PVC"
+        },
+        {
+          "code": "164917005",
+          "name": "qwave abnormal",
+          "abbreviation": "QAb"
+        },
+        {
+          "code": "427393009",
+          "name": "sinus arrhythmia",
+          "abbreviation": "SA"
+        },
+        {
+          "code": "426177001",
+          "name": "sinus bradycardia",
+          "abbreviation": "SB"
+        },
+        {
+          "code": "427084000",
+          "name": "sinus tachycardia",
+          "abbreviation": "STach"
+        },
+        {
+          "code": "164934002",
+          "name": "t wave abnormal",
+          "abbreviation": "TAb"
+        },
+        {
+          "code": "59931005",
+          "name": "t wave inversion",
+          "abbreviation": "TInv"
+        }
+      ],
+      "source": "https://github.com/DeepPSP/cinc2021/tree/9d88ab91ea8d3315479a227b68566484c18c0fb7",
+      "checkpoint_url": "https://raw.githubusercontent.com/DeepPSP/cinc2021/9d88ab91ea8d3315479a227b68566484c18c0fb7/saved_models/2_lead_model.pth.tar",
+      "license": "MIT",
+      "preprocessing": "300→500 Hz (resample_poly); Butterworth 0,5–60 Hz ordem 5; z-score global eps 1e-7; amplitude >20 mV rejeitada.",
+      "summary": "21 classes treinadas · 2 derivações · janela de 10 s. Somente a rede neural; cinco regras clínicas da solução original não são executadas. QAb significa Q anormal, sem inferir área inativa.",
+      "sha256": "187823e387553d07c72bef50b487b7b8fbbdbf99d4802c5a3a3174ec1a11fefa"
+    },
+    "deeppsp_6l": {
+      "name": "DeepPSP / CinC2021 · 6 derivações",
+      "filename": "6_lead_model.pth.tar",
+      "leads": [
+        "I",
+        "II",
+        "III",
+        "aVR",
+        "aVL",
+        "aVF"
+      ],
+      "labels": [
+        {
+          "code": "164889003",
+          "name": "atrial fibrillation",
+          "abbreviation": "AF"
+        },
+        {
+          "code": "164890007",
+          "name": "atrial flutter",
+          "abbreviation": "AFL"
+        },
+        {
+          "code": "6374002",
+          "name": "bundle branch block",
+          "abbreviation": "BBB"
+        },
+        {
+          "code": "733534002",
+          "name": "complete left bundle branch block",
+          "abbreviation": "CLBBB"
+        },
+        {
+          "code": "713427006",
+          "name": "complete right bundle branch block",
+          "abbreviation": "CRBBB"
+        },
+        {
+          "code": "270492004",
+          "name": "1st degree av block",
+          "abbreviation": "IAVB"
+        },
+        {
+          "code": "713426002",
+          "name": "incomplete right bundle branch block",
+          "abbreviation": "IRBBB"
+        },
+        {
+          "code": "445118002",
+          "name": "left anterior fascicular block",
+          "abbreviation": "LAnFB"
+        },
+        {
+          "code": "164947007",
+          "name": "prolonged pr interval",
+          "abbreviation": "LPR"
+        },
+        {
+          "code": "111975006",
+          "name": "prolonged qt interval",
+          "abbreviation": "LQT"
+        },
+        {
+          "code": "698252002",
+          "name": "nonspecific intraventricular conduction disorder",
+          "abbreviation": "NSIVCB"
+        },
+        {
+          "code": "426783006",
+          "name": "sinus rhythm",
+          "abbreviation": "NSR"
+        },
+        {
+          "code": "284470004",
+          "name": "premature atrial contraction",
+          "abbreviation": "PAC"
+        },
+        {
+          "code": "365413008",
+          "name": "poor R wave Progression",
+          "abbreviation": "PRWP"
+        },
+        {
+          "code": "427172004",
+          "name": "premature ventricular contractions",
+          "abbreviation": "PVC"
+        },
+        {
+          "code": "164917005",
+          "name": "qwave abnormal",
+          "abbreviation": "QAb"
+        },
+        {
+          "code": "427393009",
+          "name": "sinus arrhythmia",
+          "abbreviation": "SA"
+        },
+        {
+          "code": "426177001",
+          "name": "sinus bradycardia",
+          "abbreviation": "SB"
+        },
+        {
+          "code": "427084000",
+          "name": "sinus tachycardia",
+          "abbreviation": "STach"
+        },
+        {
+          "code": "164934002",
+          "name": "t wave abnormal",
+          "abbreviation": "TAb"
+        },
+        {
+          "code": "59931005",
+          "name": "t wave inversion",
+          "abbreviation": "TInv"
+        }
+      ],
+      "source": "https://github.com/DeepPSP/cinc2021/tree/9d88ab91ea8d3315479a227b68566484c18c0fb7",
+      "checkpoint_url": "https://raw.githubusercontent.com/DeepPSP/cinc2021/9d88ab91ea8d3315479a227b68566484c18c0fb7/saved_models/6_lead_model.pth.tar",
+      "license": "MIT",
+      "preprocessing": "300→500 Hz (resample_poly); Butterworth 0,5–60 Hz ordem 5; z-score global eps 1e-7; amplitude >20 mV rejeitada.",
+      "summary": "21 classes treinadas · 6 derivações · janela de 10 s. Somente a rede neural; cinco regras clínicas da solução original não são executadas. QAb significa Q anormal, sem inferir área inativa.",
+      "sha256": "29452c8bcad486672e17902337220710a076a4262af9afeca3ea138abc4b23d4"
+    }
+  },
+  "label_order_evidence": "https://huggingface.co/PKUDigitalHealth/ECGFounder/discussions/1",
+  "limitations": [
+    "Sem validação clínica no KardiaMobile.",
+    "Scores sigmoid não calibrados.",
+    "Nenhuma derivação precordial é preenchida.",
+    "Reamostragem não recupera frequências ausentes."
+  ]
+}

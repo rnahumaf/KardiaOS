@@ -10,3 +10,8 @@ work/
 *.png
 *.log
 *.egg-info/
+
+research-runtime.json
+*.research.json
+*.pth
+*.pth.tar

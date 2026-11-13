@@ -27,3 +27,22 @@ Fontes das dependências:
 
 KardiaMobile e AliveCor são marcas de seus respectivos titulares. KardiaOS não
 é afiliado nem endossado por esses fabricantes.
+
+
+## Modelos experimentais opcionais
+
+ECGFounder: MIT, Copyright (c) 2025 PKUDigitalHealth. Arquitetura original em
+`src/kardiaos/vendor/ecgfounder/net1d.py`, licença adjacente. Fonte fixada:
+https://github.com/PKUDigitalHealth/ECGFounder/tree/04edac702b61c91face519774ddcc0cd712fef23
+Checkpoint público hospedado por PKUDigitalHealth no Hugging Face (model card MIT).
+
+DeepPSP/CinC2021: MIT, Copyright (c) 2021 KANG Jingsu and WEN Hao. Código original
+em `src/kardiaos/vendor/deeppsp/torch_ecg_bak`; licença adjacente. Código e pesos:
+https://github.com/DeepPSP/cinc2021/tree/9d88ab91ea8d3315479a227b68566484c18c0fb7
+
+Os arquivos Python dos fornecedores foram preservados. A adaptação KardiaOS fica
+fora dessas árvores. O instalador inclui seu código e licenças; os pesos são
+obtidos separadamente pelo setup explícito. PyTorch e as dependências do ambiente
+de pesquisa conservam seus avisos nos pacotes instalados. Versões utilizadas:
+`requirements-research-lock.txt`. O uso destes modelos não implica certificação
+ou endosso de KardiaOS pelos autores, AliveCor ou PhysioNet.

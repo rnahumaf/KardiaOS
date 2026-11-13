@@ -1,4 +1,4 @@
-#define AppVersion "0.2.0"
+#define AppVersion "0.3.0"
 [Setup]
 AppId={{D7C2A4A3-6346-4B50-9F47-B87283E88A12}
 AppName=KardiaOS
@@ -32,6 +32,8 @@ Source: "..\tests\*.py"; DestDir: "{app}\source\tests"; Flags: ignoreversion
 Source: "..\scripts\*"; DestDir: "{app}\source\scripts"; Flags: ignoreversion
 Source: "KardiaOS.iss"; DestDir: "{app}\source\installer"; Flags: ignoreversion
 Source: "..\pyproject.toml"; DestDir: "{app}\source"; Flags: ignoreversion
+Source: "..\requirements-research-lock.txt"; DestDir: "{app}\source"; Flags: ignoreversion
+Source: "..\docs\*"; DestDir: "{app}\source\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\requirements-lock.txt"; DestDir: "{app}\source"; Flags: ignoreversion
 Source: "..\run.py"; DestDir: "{app}\source"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}\source"; Flags: ignoreversion

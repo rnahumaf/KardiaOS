@@ -80,6 +80,39 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
+## Avaliação experimental local (0.3.0)
+
+Após abrir ou concluir uma captura, use **Avaliação experimental** na barra lateral.
+Há duas avaliações independentes: ECGFounder para I (150 saídas) e DeepPSP/CinC2021
+para I–II ou seis derivações de membros (21 saídas em cada checkpoint).
+Escolha uma janela contínua de 10 segundos. A tabela preserva os rótulos originais,
+permite busca e exportação JSON local. Não há interpretação automática como diagnóstico.
+
+Os scores sigmoid não são probabilidades calibradas. A integração não tem validação
+clínica no KardiaMobile. Sem referência documentada de amplitude e polaridade, o
+resultado é **inconclusivo**, sem scores. O botão **Registrar referência de escala**
+registra uma declaração do usuário; não mede nem verifica a referência. Não marque
+essa declaração apenas para desbloquear a análise. A calibração é da captura atual;
+salve-a explicitamente se quiser persistir seus metadados.
+
+Os checkpoints são opcionais, separados do instalador. Para preparar outro computador,
+com Python 3.11 disponível, execute no código-fonte:
+
+```powershell
+python scripts/setup_research.py --target "C:\Users\SEU_USUARIO\AppData\Local\Programs\KardiaOS"
+python scripts/validate_research.py
+```
+
+O primeiro comando instala o ambiente de pesquisa e baixa exclusivamente pesos públicos
+das fontes fixadas, conferindo SHA-256. O segundo testa o código-fonte e requer também
+configuração na raiz do repositório (execute setup sem `--target`). Para verificar a
+instalação configurada, execute `KardiaOS.exe --research-smoke-test`: usa somente
+sinais sintéticos, todos os três checkpoints e o bloqueio de escala não verificada.
+O aplicativo não baixa modelos durante a análise e não transmite ECGs.
+
+Contratos de entrada, pré-processamento, fontes, licenças e limites estão em
+[docs/research-models.md](docs/research-models.md).
+
 ## Desenvolvimento
 
 ```powershell

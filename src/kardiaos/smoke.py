@@ -47,3 +47,25 @@ def check():
     buffer.close()
     w.dirty = False
     w.close()
+
+
+def check_research():
+    """Verify installed assets, GUI imports, worker path and all trained heads."""
+    from .recording import Recording
+    from .research import analyze, catalog
+    from .research_dialog import ResearchDialog
+    import numpy as np
+    record = Recording(synthetic=True)
+    record.append(0, synthetic_pairs(0, 3300), good=True)
+    record.meta.update(start=1.0, end=record.last_time)
+    dialog = ResearchDialog(record)
+    for key, spec in catalog()['models'].items():
+        result = analyze(record, key)
+        assert result['status'] == 'synthetic', result.get('reasons')
+        assert len(result['scores']) == len(spec['labels'])
+        assert np.isfinite([v['score'] for v in result['scores']]).all()
+    record.meta['synthetic'] = False
+    for key in catalog()['models']:
+        result = analyze(record, key)
+        assert result['status'] == 'inconclusive' and result['scores'] == []
+    dialog.close()
