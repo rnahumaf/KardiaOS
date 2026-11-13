@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kardiaos"
+version = "0.2.0"
+description = "Local research workbench for KardiaMobile 6L"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["bleak==3.1.0", "PySide6>=6.8,<7", "numpy>=2,<3", "scipy>=1.14,<2", "reportlab>=4,<6"]
+
+[project.gui-scripts]
+kardiaos = "kardiaos.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+kardiaos = ["assets/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
