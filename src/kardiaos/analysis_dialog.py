@@ -2,8 +2,9 @@
 import json
 from PySide6.QtCore import Qt,QThread,Signal,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QWidget,
-    QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox)
+    QCheckBox,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox)
 from .automatic_analysis import automatic_analysis,analysis_key
+from .orientation import evidence_summary
 
 
 def label(text):
@@ -12,9 +13,11 @@ def label(text):
 
 class AutomaticThread(QThread):
     update=Signal(dict);result_ready=Signal(dict)
-    def __init__(self,recording,parent):super().__init__(parent);self.recording=recording
+    def __init__(self,recording,parent,technical_mode=False):super().__init__(parent);self.recording=recording;self.technical_mode=technical_mode
     def run(self):
-        try: result=automatic_analysis(self.recording,self.update.emit,self.isInterruptionRequested)
+        try:
+            kwargs={'technical_mode':True} if self.technical_mode else {}
+            result=automatic_analysis(self.recording,self.update.emit,self.isInterruptionRequested,**kwargs)
         except Exception as exc: result=dict(status='failed',reason='Falha local: '+type(exc).__name__,scenarios=[])
         self.result_ready.emit(result)
 
@@ -25,11 +28,14 @@ class AutomaticAnalysisDialog(QDialog):
         self.setWindowTitle('KardiaOS — análise automática experimental');self.resize(1120,780);self.setMinimumSize(850,650)
         box=QVBoxLayout(self)
         box.addWidget(label('Medições experimentais e hipóteses das redes — processamento local'))
-        box.addWidget(label('Escores não são probabilidades ou diagnósticos. Sem referência de escala/orientação, todas as polaridades são mostradas como cenários; nenhuma é escolhida pelo maior escore. Q anormal não estabelece área inativa. Rótulos de infarto/eixo e comparações temporais das redes não são confirmados por estes sinais.'))
+        box.addWidget(label('Escores nao sao probabilidades ou diagnosticos. Posicao fisica nao comprova decoder ou mV. Sem referencia pareada do decoder, morfologia fica indisponivel no fluxo normal. Q anormal nao estabelece area inativa.'))
         self.facts=label('Confirmado pelo arquivo: sem captura.' if not recording else
             f"Informação do arquivo: {recording.n} pares; {recording.meta.get('sample_rate')} Hz nominais; "
             +('sinal sintético.' if recording.meta.get('synthetic') else 'captura local. Relógio físico, mV e orientação não são confirmados por esta tela.'))
         box.addWidget(self.facts)
+        self.evidence_label=label(evidence_summary(recording));box.addWidget(self.evidence_label)
+        self.technical=QCheckBox("Modo tecnico: comparar multiplicadores +/- (fora da impressao)");box.addWidget(self.technical)
+        box.addWidget(label("I+ preserva o bruto; I- multiplica por -1. Nao significam onda R positiva/negativa. Nenhum sinal e escolhido pelo maior score."))
         self.tabs=QTabWidget();box.addWidget(self.tabs,1)
         measure=QWidget();mb=QVBoxLayout(measure)
         self.measure_note=label('Escolha automática do trecho contínuo mais longo de DI, limitado a 30 s.');mb.addWidget(self.measure_note)
@@ -52,15 +58,17 @@ class AutomaticAnalysisDialog(QDialog):
         self.cancel_button.setEnabled(False);self.export_button.setEnabled(False)
         for b in (self.run_button,self.cancel_button,self.export_button,close):row.addWidget(b)
         box.addLayout(row);self.run_button.clicked.connect(self.start);self.cancel_button.clicked.connect(self.cancel);self.export_button.clicked.connect(self.export);close.clicked.connect(self.reject)
+        self.technical.toggled.connect(self.start)
         if autostart:QTimer.singleShot(0,self.start)
     def busy(self):return self.thread is not None and self.thread.isRunning()
     def start(self):
         if self.busy() or self.closing:return
         self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
         if self.recording is not None:self.recording._automatic_analysis=None
+        self.technical.setEnabled(False);self.evidence_label.setText(evidence_summary(self.recording))
         self.reference_button.setEnabled(False);self.run_button.setEnabled(False);self.export_button.setEnabled(False);self.cancel_button.setEnabled(True)
         self.status.setText('Calculando medições e verificando entradas…')
-        self.thread=AutomaticThread(self.recording,self);self.thread.update.connect(self.update_result);self.thread.result_ready.connect(self.on_result);self.thread.finished.connect(self.on_worker_finished);self.thread.start()
+        self.thread=AutomaticThread(self.recording,self,self.technical.isChecked());self.thread.update.connect(self.update_result);self.thread.result_ready.connect(self.on_result);self.thread.finished.connect(self.on_worker_finished);self.thread.start()
     def update_result(self,event):
         if self.closing:return
         kind,v=event['kind'],event['value']
@@ -84,10 +92,11 @@ class AutomaticAnalysisDialog(QDialog):
         self.score_table.resizeRowToContents(row)
     def on_result(self,result):
         self.result=result;self.export_button.setEnabled(True)
-        if self.recording is not None and result['status']=='completed':
+        if self.recording is not None and result['status']=='completed' and result.get('mode')=='normal':
             self.recording._automatic_analysis=result;self.recording._automatic_analysis_key=analysis_key(self.recording)
         self.status.setText({'completed':f"Concluído: {sum(bool(v.get('scores')) for v in result.get('scenarios',[]))} cenários com escores. Resultados experimentais, sem confirmação clínica.",'cancelled':'Interrompido. Resultados parciais identificados; nenhuma captura alterada.'}.get(result['status'],result.get('reason','Falha local.')))
     def on_worker_finished(self):
+        self.technical.setEnabled(True)
         self.reference_button.setEnabled(True);self.run_button.setEnabled(True);self.cancel_button.setEnabled(False)
         if self.closing:super().reject()
     def cancel(self):
@@ -100,10 +109,10 @@ class AutomaticAnalysisDialog(QDialog):
         else:event.accept()
     def reference(self):
         if self.busy() or self.recording is None:return
-        from .research_dialog import ResearchDialog
-        before=repr(self.recording.meta.get('research_calibration'))
-        ResearchDialog(self.recording,self.parent()).exec()
-        if before!=repr(self.recording.meta.get('research_calibration')):self.start()
+        from .evidence_dialog import EvidenceDialog
+        if EvidenceDialog(self.recording,self).exec()==QDialog.DialogCode.Accepted:
+            if self.parent() is not None and hasattr(self.parent(),'dirty'):self.parent().dirty=True
+            self.evidence_label.setText(evidence_summary(self.recording));self.start()
     def export(self):
         if self.result is None:return
         path,_=QFileDialog.getSaveFileName(self,'Exportar análise local','analise.research.json','JSON (*.json)')

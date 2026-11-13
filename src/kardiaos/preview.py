@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDoubleSpinBox, QFileDialog, QMessageBox, QSizePolicy, QComboBox)
 from .report import pdf_bytes, page_plan
 from .automatic_analysis import analysis_key
+from .orientation import evidence_state
 
 
 def render_page(data, size=QSize(1404, 992)):
@@ -70,9 +71,10 @@ class PrintPreview(QDialog):
         self.recording, self.speed, self.gain, self.raw = recording, speed, gain, raw
         self.analysis=getattr(recording,"_automatic_analysis",None)
         if getattr(recording,"_automatic_analysis_key",None)!=analysis_key(recording):self.analysis=None
+        if self.analysis is not None and self.analysis.get("mode")!="normal":self.analysis=None
         if self.analysis is None:
             from .measurements import measure_recording
-            self.analysis=dict(status="running",measurements=measure_recording(recording),scenarios=[],unavailable=[])
+            self.analysis=dict(status="running",mode="normal",evidence=evidence_state(recording),measurements=measure_recording(recording),scenarios=[],unavailable=[])
         self.thread=None;self.closing=False
         self.data = b""
         self.page_image = None

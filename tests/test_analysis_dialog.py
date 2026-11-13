@@ -20,12 +20,12 @@ def test_headless_dialog_repeat_and_close_cancel(monkeypatch,tmp_path):
     dialog=AutomaticAnalysisDialog(signal_record(),autostart=False)
     dialog.resize(850,650);dialog.show();app.processEvents();dialog.start()
     wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.measure_table.rowCount()==5 and dialog.score_table.rowCount()==50
+    assert dialog.measure_table.rowCount()==5 and dialog.score_table.rowCount()==15
     assert dialog.rect().contains(dialog.export_button.geometry())
     dialog.tabs.setCurrentIndex(1);app.processEvents()
     assert dialog.grab().save(str(tmp_path/'synthetic-analysis.png'))
     dialog.start();wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.score_table.rowCount()==50
+    assert dialog.score_table.rowCount()==15
     dialog.reject();assert not dialog.isVisible()
     def slow(key,values,cancel):
         while not cancel():time.sleep(.01)

@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 import numpy as np
+from .orientation import evidence_state,normal_signs
+from .signal import six_leads
 
 CATALOG_PATH = Path(__file__).parent / 'assets' / 'research_catalog.json'
 
@@ -26,13 +28,8 @@ def runtime_config():
 
 
 def calibration_valid(recording):
-    meta = recording.meta
-    evidence = meta.get('research_calibration', {})
-    return (meta.get('amplitude_verified') is True
-            and evidence.get('polarity_verified') is True
-            and isinstance(evidence.get('reference'), str)
-            and len(evidence['reference'].strip()) >= 8
-            and evidence.get('mv_per_count') == meta.get('mv_per_count'))
+    state=evidence_state(recording)
+    return all(v is not None for v in state['decoder'].values()) and all(state['amplitude'].values())
 
 
 def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True):
@@ -49,8 +46,8 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
     if not np.isfinite(offset) or offset < 0:
         reasons.append('Início do trecho inválido.')
         return result
-    if require_calibration and not result['synthetic'] and not calibration_valid(r):
-        reasons.append('Escala e/ou polaridade não verificadas com referência documentada. Não são emitidos scores.')
+    if require_calibration and not result['synthetic'] and normal_signs(r,model_key) is None:
+        reasons.append('Convencao do decoder sem referencia pareada por canal. Morfologia indisponivel; medidas temporais independentes continuam disponiveis.')
     factor = r.meta.get('mv_per_count', 0)
     if not isinstance(factor, (int, float)) or not np.isfinite(factor) or factor <= 0:
         reasons.append('Fator de amplitude inválido.')
@@ -60,7 +57,7 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
     end = float(r.meta.get('end') or r.last_time) + 1 / 300
     result.update(first_sample=left, last_sample=right, offset_seconds=float(offset), duration_seconds=10,
                   input_sample_rate=300, model_sample_rate=500, leads=model['leads'],
-                  calibration_verified=calibration_valid(r))
+                  calibration_verified=calibration_valid(r), evidence=evidence_state(r))
     if right > r.n or left >= r.n or r.times[min(right - 1, r.n - 1)] >= end:
         reasons.append('O trecho selecionado precisa conter 10 s completos; não há preenchimento artificial.')
         return result
@@ -90,7 +87,10 @@ def analyze(recording, model_key, offset=0.0):
     try:
         cfg = runtime_config()
         left, right = result['first_sample'], result['last_sample']
-        values = recording.lead_values(left, right, raw=True)[:, :len(result['leads'])].T.copy()
+        signs=normal_signs(recording,model_key)
+        raw=recording.raw[left:right,:len(signs)].astype(float)*np.asarray(signs)
+        if model_key=='deeppsp_6l':raw=six_leads(raw)
+        values=raw.T*recording.meta['mv_per_count']
         payload = io.BytesIO()
         np.savez(payload, values_mv=values, model_key=np.array(model_key))
         worker = Path(__file__).with_name('research_worker.py')

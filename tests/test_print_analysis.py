@@ -20,9 +20,9 @@ def test_one_sheet_contains_measures_and_every_model_sign_scenario():
     text=pdf.pages[0].extract_text()
     for term in ['FC: 60 bpm','P:','QRS:','QTcF:','Fridericia','nao sao probabilidades','ECGFounder 1L','DeepPSP 2L','DeepPSP 6L']:
         assert term in text
-    assert text.count('ECGFounder 1L |')==2
-    assert text.count('DeepPSP 2L |')==4
-    assert text.count('DeepPSP 6L |')==4
+    assert text.count('ECGFounder 1L |')==1
+    assert text.count('DeepPSP 2L |')==1
+    assert text.count('DeepPSP 6L |')==1
 
 def test_print_unavailable_has_reason_and_never_fabricates_score():
     r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)

@@ -173,7 +173,7 @@ class ResearchDialog(QDialog):
         self.offset.setSuffix(' s')
         row.addWidget(self.offset)
         row.addStretch()
-        self.calibrate_button = QPushButton('Registrar referência de escala')
+        self.calibrate_button = QPushButton('Evidencias independentes')
         self.calibrate_button.setEnabled(bool(recording and not recording.meta.get('synthetic')))
         self.calibrate_button.clicked.connect(self.calibrate)
         row.addWidget(self.calibrate_button)
@@ -192,13 +192,8 @@ class ResearchDialog(QDialog):
         self.update_calibration()
 
     def update_calibration(self):
-        if self.recording and self.recording.meta.get('synthetic'):
-            text = 'Dados sintéticos: apenas teste técnico do pipeline.'
-        elif self.recording and calibration_valid(self.recording):
-            text = 'Referência de escala e polaridade declarada para esta captura. O programa não verifica a referência.'
-        else:
-            text = 'Escala/polaridade sem referência verificada: análise inconclusiva, sem emissão de scores.'
-        self.calibration.setText(text)
+        from .orientation import evidence_summary
+        self.calibration.setText(evidence_summary(self.recording))
 
     def invalidate(self, *_):
         for pane in self.panes:
@@ -206,39 +201,9 @@ class ResearchDialog(QDialog):
         self.update_calibration()
 
     def calibrate(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Referência externa para esta captura')
-        box = QVBoxLayout(dialog)
-        box.addWidget(text_label('Use uma referência conhecida de amplitude e polaridade. '
-            'O traçado e os scores não permitem deduzir a calibração. Não informe dados pessoais nesta descrição.'))
-        form = QFormLayout()
-        factor = QDoubleSpinBox()
-        factor.setDecimals(10)
-        factor.setRange(0.00000001, 1)
-        factor.setValue(self.recording.meta['mv_per_count'])
-        reference = QLineEdit()
-        reference.setPlaceholderText('Instrumento/referência, método e data da conferência')
-        reference.setMaxLength(300)
-        verified = QCheckBox('Conferi amplitude e polaridade das entradas utilizadas com essa referência')
-        form.addRow('mV por contagem', factor)
-        form.addRow('Referência', reference)
-        box.addLayout(form)
-        box.addWidget(verified)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(False)
-        def update():
-            buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(verified.isChecked() and len(reference.text().strip()) >= 8)
-        verified.toggled.connect(update)
-        reference.textChanged.connect(update)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        box.addWidget(buttons)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.recording.meta.update(mv_per_count=factor.value(), amplitude_verified=True,
-                research_calibration=dict(mv_per_count=factor.value(), polarity_verified=True, reference=reference.text().strip()))
-            if self.parent() is not None:
-                self.parent().dirty = True
-                self.parent().paper.update()
+        from .evidence_dialog import EvidenceDialog
+        if EvidenceDialog(self.recording,self).exec()==QDialog.DialogCode.Accepted:
+            if self.parent() is not None and hasattr(self.parent(),'dirty'):self.parent().dirty=True
             self.invalidate()
 
     def reject(self):

@@ -27,7 +27,7 @@ def test_a4_landscape_single_page_and_scale(speed, offset):
         assert abs(float(page.mediabox.width) - 297 * mm) < .001
         assert abs(float(page.mediabox.height) - 210 * mm) < .001
         text = page.extract_text()
-        for token in ('D2 contínua', f'{speed} mm/s', '10 mm/mV', 'DADOS SINTÉTICOS', 'não calibrada', 'Página 1/1'):
+        for token in ('D2 contínua', f'{speed} mm/s', '10 mm/mV', 'DADOS SINTÉTICOS', 'nao calibrada', 'Página 1/1'):
             assert token in text
         assert len(page.images) == 0  # Waveforms and grid are vector paths.
         labels = {}

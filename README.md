@@ -80,7 +80,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.4.0)
+## Análise automática local (0.5.0)
 
 Após abrir ou concluir uma captura, **Análise automática** calcula as medições
 experimentais de DI e avalia os modelos compatíveis no primeiro trecho contínuo
@@ -95,23 +95,27 @@ relativos, sem validação clínica. A base temporal é 300 Hz nominal; não hou
 verificação independente do relógio do aparelho. Não se deduz mV ou orientação
 a partir de durações ou scores.
 
-ECGFounder usa I e preserva seus 150 rótulos; DeepPSP/CinC2021 tem checkpoints
-para I–II e seis derivações de membros, com 21 rótulos cada. Na ausência de uma
-referência declarada para a captura, o fluxo exploratório mostra **todas as
-hipóteses de sinais**, sem escolher uma como correta: I+/I− ou as quatro
-combinações de I/II. As demais derivações de membros são recalculadas para cada
-combinação. Não são geradas precordiais. Os cinco maiores scores de cada cenário
-são mostrados; a exportação contém todos, incluindo status parcial/interrompido.
+ECGFounder usa I (150 rótulos); DeepPSP tem checkpoints I–II e 6L (21 rótulos).
+Posição física declarada, convenção do decoder e amplitude são estados separados.
+O fluxo normal executa uma única convenção documentada para os canais usados.
+Sem referência pareada do decoder, as hipóteses morfológicas ficam indisponíveis;
+FC e durações temporais continuam quando o sinal permite. Falta de mV não gera
+inversões. Os cinco maiores scores disponíveis aparecem na tela, três na folha.
+
+O **Modo técnico** é explícito, separado da impressão, e compara multiplicadores
+I+/I− e I/II. I+ preserva o bruto; I− multiplica por −1. Não indicam R positiva
+ou negativa. Nenhum sinal é escolhido pelo maior score. Não há precordiais.
 
 Scores sigmoid não são probabilidades, laudos ou diagnósticos. Não há validação
 clínica no KardiaMobile. Q anormal não determina área inativa/infarto, e rótulos
 temporais não demonstram evolução entre exames. As observações de orientação
 de uma captura não são promovidas a calibração universal.
 
-O botão **Referência** mantém a análise dirigida anterior: ela fica inconclusiva
-sem referência documentada de amplitude/polaridade. A declaração do usuário não
-é medida pelo programa; não a marque para desbloquear resultados. O novo fluxo
-exploratório não modifica essa declaração nem os dados originais.
+O botão **Referência** registra posição física, convenção do decoder por canal
+ou amplitude separadamente, com escopo desta captura e proveniência. A revisão
+da referência é declarada pelo usuário, não comprovada eletricamente pelo app.
+Flags antigas são preservadas, sem virar validação nova. Detalhes em
+[evidências independentes](docs/orientation-evidence.md).
 
 Na prévia de impressão, **DI em linhas** distribui o trecho em linhas sucessivas
 numa folha A4. Velocidade, ganho, pulso de 1 mV/200 ms, intervalos de cada linha
@@ -132,7 +136,7 @@ Somente esse setup explícito baixa dependências e pesos das fontes fixadas e
 confere SHA-256. O aplicativo não baixa modelos nem transmite ECGs na análise.
 O instalador recusa atualização se encontrar o KardiaOS em execução; salve e
 feche sua sessão manualmente antes de atualizar. Dados e preferências não são
-removidos. [Limites e métodos de 0.4.0](docs/automatic-analysis.md).
+removidos. [Limites e métodos de 0.5.0](docs/automatic-analysis.md).
 
 ## Desenvolvimento
 

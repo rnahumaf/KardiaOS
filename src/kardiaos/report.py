@@ -7,9 +7,11 @@ from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from .signal import LEADS
+from .orientation import evidence_summary,amplitude_label
 
 
 def page_plan(recording, speed=25, gain=10, raw=False, offset=0, layout='auto', analysis=None):
+    if analysis is not None and analysis.get("mode")!="normal":raise ValueError("Comparacao tecnica de inversoes nao pertence ao relatorio padrao.")
     r = recording
     if r is None or not r.n or r.meta.get('start') is None: raise ValueError('Não há trecho estabilizado para imprimir.')
     if speed not in (25,50) or gain not in (5,10,20): raise ValueError('Escala inválida.')
@@ -87,11 +89,12 @@ def pdf_bytes(recording, speed=25.0, gain=10.0, raw=False, offset=0.0, layout='a
     c.setFont('Helvetica',9)
     c.drawString(10*mm,height-20*mm,'ECG experimental de pesquisa | '+('DADOS SINTÉTICOS' if recording.meta.get('synthetic') else 'Captura local'))
     c.drawRightString(width-10*mm,height-13*mm,f'{speed:g} mm/s | {gain:g} mm/mV | 300 Hz nominais')
-    c.drawRightString(width-10*mm,height-19*mm,'amplitude declarada pelo usuário' if recording.meta.get('amplitude_verified') else 'amplitude estimada, não calibrada')
+    c.drawRightString(width-10*mm,height-19*mm,amplitude_label(recording))
     c.setFont('Helvetica',8)
     c.drawString(10*mm,height-27*mm,f"Trecho {offset:.1f} a {plan['end']-plan['begin']:.1f} s de {plan['recording_end']-plan['begin']:.1f} s | Página 1/1")
     filters='Bruto' if raw else f'Filtrado: base {cfg.baseline:g} Hz; passa-baixas {cfg.lowpass:g} Hz; rede {cfg.notch or "desligada"}'
     c.drawRightString(width-10*mm,height-27*mm,filters)
+    c.setFont('Helvetica',6.5);c.drawString(10*mm,179*mm,evidence_summary(recording))
     for row in plan['rows']:
         x,top,w,h,baseline=[row[k] for k in ('x','top','w','h','baseline')]; bottom=top-h
         for j in range(int(w)+1):
@@ -146,8 +149,8 @@ def draw_analysis(c, analysis):
     line(' | '.join(parts)+f" | trecho medido: {m.get('offset_seconds',0):g}-{m.get('offset_seconds',0)+m.get('duration_seconds',0):g} s",69,True)
     reasons=list(dict.fromkeys(v['reason'] for v in metrics.values() if v['value'] is None))
     line('Motivo: '+' / '.join(reasons) if reasons else 'QTcF = QT(ms)/RR(s)^(1/3). Limites relativos de onda; filtros podem alterar duracoes. Nao e medida global de 12 derivacoes.',65,size=6.8)
-    line('QTcF: Fridericia, RR estavel 0,6-1,5 s e QRS <120 ms. Escala/polaridade nao verificadas por estas medidas.',61,size=6.8)
-    line('HIPOTESES DAS REDES | 3 maiores scores por cenario | nao sao probabilidades nem diagnosticos',57,True)
+    line('QTcF = QT(ms)/RR(s)^(1/3), Fridericia; RR estavel 0,6-1,5 s e QRS <120 ms. Escala/polaridade nao verificadas por estas medidas.',61,size=6.8)
+    line('HIPOTESES DAS REDES | 3 maiores scores por modelo; fluxo normal | nao sao probabilidades nem diagnosticos',57,True)
     entries=[]
     for item in analysis.get('scenarios',[]):
         prefix={'ecgfounder_1l':'ECGFounder 1L','deeppsp_2l':'DeepPSP 2L','deeppsp_6l':'DeepPSP 6L'}.get(item['model'],item['model'])

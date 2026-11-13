@@ -84,13 +84,13 @@ def check_automatic():
     before = record.raw[:record.n].copy()
     result = automatic_analysis(record)
     assert result['status'] == 'completed'
-    assert len(result['scenarios']) == 10
+    assert len(result['scenarios']) == 3
     assert all(v['scores'] and v['status'] == 'synthetic' for v in result['scenarios'])
     np.testing.assert_array_equal(before, record.raw[:record.n])
     dialog = AutomaticAnalysisDialog(record, autostart=False)
     dialog.update_result(dict(kind='measurements', value=result['measurements']))
     for item in result['scenarios']: dialog.update_result(dict(kind='scenario', value=item))
-    assert dialog.score_table.rowCount() == 50
+    assert dialog.score_table.rowCount() == 15
     assert measure_recording(None)['metrics']['qtc_f']['value'] is None
     plan = page_plan(record, layout='di')
     assert plan['remaining_seconds'] < .01 and len(plan['rows']) >= 3
@@ -101,3 +101,11 @@ def check_automatic():
     preview.close()
     assert not render_page(pdf_bytes(record, layout='di',analysis=result)).isNull()
     dialog.close()
+
+    # Explicit technical path only; never cached for standard printing.
+    technical=automatic_analysis(record,technical_mode=True)
+    assert len(technical['scenarios'])==10 and all(v['scores'] for v in technical['scenarios'])
+    record.meta['synthetic']=False
+    normal=automatic_analysis(record)
+    assert not normal['scenarios'] and len(normal['unavailable'])==3
+    assert not render_page(pdf_bytes(record,layout='di',analysis=normal)).isNull()

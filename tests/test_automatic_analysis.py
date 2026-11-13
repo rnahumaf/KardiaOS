@@ -14,7 +14,7 @@ def test_all_unknown_orientations_preserved_without_calibrating_or_mutating():
     r=signal_record();r.meta['synthetic']=False
     before=r.raw[:r.n].copy();calls=[]
     def infer(key,values,cancel):calls.append((key,values.copy()));return fake_infer(key,values,cancel)
-    result=automatic_analysis(r,infer=infer)
+    result=automatic_analysis(r,infer=infer,technical_mode=True)
     assert len(result['scenarios'])==10
     assert {v['hypothesis'] for v in result['scenarios'] if v['model']=='deeppsp_6l'}=={'I+ II+','I+ II-','I- II+','I- II-'}
     for key,x in calls:
@@ -27,7 +27,7 @@ def test_all_unknown_orientations_preserved_without_calibrating_or_mutating():
 def test_single_lead_never_fills_missing_channels():
     r=signal_record();r.raw[:r.n,1]|=1;r.lead_modes[:r.n]=1
     result=automatic_analysis(r,infer=fake_infer)
-    assert len(result['scenarios'])==2
+    assert len(result['scenarios'])==1
     assert all(v['model']=='ecgfounder_1l' for v in result['scenarios'])
     assert len(result['unavailable'])==2
 
@@ -44,7 +44,7 @@ def test_cancellation_between_scenarios_and_repeat_has_no_stale_rows():
     result=automatic_analysis(signal_record(),lambda v:emitted.append(v),lambda:any(v['kind']=='scenario' for v in emitted),fake_infer)
     assert result['status']=='cancelled' and len(result['scenarios'])==1
     again=automatic_analysis(signal_record(),infer=fake_infer)
-    assert again['status']=='completed' and len(again['scenarios'])==10
+    assert again['status']=='completed' and len(again['scenarios'])==3
 
 
 def test_first_technical_window_not_selected_by_model_score():

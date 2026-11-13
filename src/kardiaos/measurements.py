@@ -3,6 +3,8 @@ import numpy as np
 from scipy.signal import butter, sosfiltfilt, find_peaks, welch
 from scipy.ndimage import uniform_filter1d
 
+from .orientation import evidence_state
+
 FS = 300
 NAMES = {'heart_rate': ('FC por RR mediano', 'bpm'), 'p_duration': ('Duração P', 'ms'),
          'qrs_duration': ('Duração QRS', 'ms'), 'qt': ('QT', 'ms'), 'qtc_f': ('QTc Fridericia', 'ms')}
@@ -79,7 +81,7 @@ def measure_recording(recording):
     a, b = segment
     result.update(first_sample=a, last_sample_exclusive=b,
                   offset_seconds=float(recording.times[a] - recording.meta['start']), duration_seconds=(b-a)/FS,
-                  synthetic=bool(recording.meta.get('synthetic')), amplitude_verified=bool(recording.meta.get('amplitude_verified')))
+                  synthetic=bool(recording.meta.get('synthetic')), amplitude_verified=evidence_state(recording)['amplitude']['I'])
     raw = recording.raw[a:b, 0].astype(float)
     error = technical_quality(raw)
     if error:

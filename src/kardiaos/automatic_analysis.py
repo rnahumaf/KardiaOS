@@ -2,9 +2,10 @@
 from pathlib import Path
 import io,json,os,subprocess,sys,time
 import numpy as np
-from .research import catalog,calibration_valid,inspect_window,runtime_config
+from .research import catalog,inspect_window,runtime_config
 from .measurements import measure_recording,technical_quality
 from .signal import six_leads
+from .orientation import evidence_state,normal_signs,model_channels
 
 
 class Cancelled(Exception): pass
@@ -59,27 +60,33 @@ def first_window(recording,key,cancelled=lambda:False):
     return None,last_reason
 
 
-def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores):
-    result=dict(status='running',calibration_verified=bool(recording and calibration_valid(recording)),
+def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False):
+    result=dict(status='running',mode='technical' if technical_mode else 'normal',evidence=evidence_state(recording),
         clinical_validation=False,measurements=measure_recording(recording),scenarios=[],unavailable=[],
-        interpretation='Hipóteses de redes, não diagnósticos nem probabilidades. Escala/orientação não são inferidas dos escores. Sem escolher cenário favorável.')
+        interpretation='Escores nao sao probabilidades ou diagnosticos. Posicao fisica, decoder e amplitude sao independentes. Multiplicadores nao representam sinal da onda R.')
     emit(dict(kind='measurements',value=result['measurements']))
     try:
         for key,spec in catalog()['models'].items():
             if cancelled(): raise Cancelled()
+            signs_for_normal=normal_signs(recording,key) if recording is not None else None
+            if not technical_mode and recording is not None and signs_for_normal is None:
+                missing=[v for v in model_channels(key) if result['evidence']['decoder'][v] is None]
+                item=dict(model=key,reason='Convencao do decoder sem referencia pareada: '+', '.join(missing)+'. Morfologia indisponivel; amplitude e posicao fisica sao estados separados.')
+                result['unavailable'].append(item);emit(dict(kind='unavailable',value=item));continue
             check,reason=first_window(recording,key,cancelled)
             if check is None:
                 item=dict(model=key,reason=reason);result['unavailable'].append(item);emit(dict(kind='unavailable',value=item));continue
             # No anatomical orientation inferred from appearance or earlier user statements.
-            signs=[(1,)] if key=='ecgfounder_1l' else [(1,1)]
-            if not result['calibration_verified']:
+            signs=[signs_for_normal]
+            if technical_mode:
                 signs=[(1,),(-1,)] if key=='ecgfounder_1l' else [(1,1),(1,-1),(-1,1),(-1,-1)]
             for sign in signs:
                 if cancelled(): raise Cancelled()
                 name='I'+('+' if sign[0]>0 else '-')
                 if len(sign)==2:name+=' II'+('+' if sign[1]>0 else '-')
+                if not technical_mode:name='Entrada sintetica' if recording.meta.get('synthetic') else 'Convencao referenciada'
                 item=dict(model=key,name=spec['name'],leads=spec['leads'],hypothesis=name,
-                    offset_seconds=check['offset_seconds'],duration_seconds=10,calibration_verified=result['calibration_verified'],
+                    offset_seconds=check['offset_seconds'],duration_seconds=10,mode=result['mode'],raw_multipliers=sign,evidence=result['evidence'],
                     status='synthetic' if recording.meta.get('synthetic') else 'unvalidated_experiment',scores=[])
                 emit(dict(kind='progress',value=spec['name']+' · '+name))
                 raw=recording.raw[check['first_sample']:check['last_sample'],:len(sign)].astype(float)*np.array(sign)
@@ -97,10 +104,10 @@ def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,in
     return result
 
 
-def analysis_key(recording):
+def analysis_key(recording,technical_mode=False):
     """Cache only the exact signal, timebase, contact and metadata; never persist it."""
     import hashlib
-    digest=hashlib.sha256(json.dumps(recording.meta,sort_keys=True).encode())
+    digest=hashlib.sha256(("0.5.0:"+str(technical_mode)+json.dumps(recording.meta,sort_keys=True)).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())
     return digest.hexdigest()

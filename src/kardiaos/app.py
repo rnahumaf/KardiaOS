@@ -69,7 +69,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.4.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.5.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -602,7 +602,7 @@ class Window(QMainWindow):
         factor.setRange(.00000001, .1)
         factor.setSingleStep(.000001)
         factor.setValue(float(self.settings.value("amplitude/factor", MV_PER_COUNT)))
-        verified = QCheckBox("Escala verificada com referência de amplitude conhecida")
+        verified = QCheckBox("Declaracao legada de amplitude; referencia por canal em Analise > Referencia")
         verified.setChecked(self.settings.value("amplitude/verified", False, type=bool))
         form.addRow("mV por contagem digital", factor)
         form.addRow(verified)

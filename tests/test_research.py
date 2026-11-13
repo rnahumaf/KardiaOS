@@ -31,7 +31,7 @@ def test_real_capture_requires_reference_and_factor_match(monkeypatch):
     r.meta['amplitude_verified'] = True
     assert not research.calibration_valid(r)
     r.meta['research_calibration'] = dict(reference='Synthetic test reference', polarity_verified=True, mv_per_count=r.meta['mv_per_count'])
-    assert research.calibration_valid(r)
+    assert not research.calibration_valid(r)
     r.meta['mv_per_count'] *= 2
     assert not research.calibration_valid(r)
 
@@ -66,7 +66,7 @@ def test_native_format_preserves_calibration_reference_and_raw(tmp_path):
     path = tmp_path / 'synthetic.kardia'
     save_recording(path, r)
     loaded = load_recording(path)
-    assert research.calibration_valid(loaded)
+    assert not research.calibration_valid(loaded)
     np.testing.assert_array_equal(loaded.raw[:loaded.n], r.raw[:r.n])
 
 

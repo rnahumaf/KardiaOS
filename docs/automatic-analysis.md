@@ -1,4 +1,4 @@
-# Métodos e limites — 0.4.0
+# Métodos e limites — 0.5.0
 
 ## Medições experimentais de DI
 
@@ -42,12 +42,11 @@ Referências de contexto, sem alegar equivalência/validação do algoritmo loca
 
 ## Hipóteses das redes
 
-O fluxo automático é exploratório e separado de `research.analyze`, cujo bloqueio
-de calibração permanece. Sem referência específica, executam-se I+/I− no
-ECGFounder e as quatro combinações I/II nos checkpoints DeepPSP 2L e 6L. Não se
-deduz o sinal correto do maior score ou da aparência; todas as hipóteses são
-preservadas. As derivações III/aVR/aVL/aVF são recalculadas após inverter os
-canais independentes. A escala provisória continua explícita, não validada.
+O fluxo normal exige referência revisada da convenção do decoder por canal;
+posição física e amplitude são estados independentes. Sem essa referência,
+hipóteses morfológicas ficam indisponíveis, sem impedir tempos invariantes ao
+sinal. A comparação de inversões existe apenas no modo técnico explícito,
+fora da impressão. Consulte [contrato de evidência](orientation-evidence.md).
 
 O primeiro trecho tecnicamente aceito de 10 s, buscado a cada 300 amostras (1 s nominal, saltando lacunas), é usado
 por modelo. Não é selecionado pelo score. Se nenhum trecho servir, há motivo de
@@ -63,7 +62,7 @@ Não há calibração estatística nem validação de domínio KardiaMobile.
 
 DI em linhas utiliza janelas contíguas de 10 s a 25 mm/s ou 5 s a 50 mm/s. Até
 seis linhas podem caber, conforme a amplitude e o ganho; a altura é planejada
-antes do desenho. Na prévia, um painel inferior reserva espaço para FC/P/QRS/QT/QTcF e três maiores scores por cenário. Isso reduz a área disponível ao traçado sem mudar o ganho ou a velocidade. Todos os cenários são listados, inclusive indisponibilidade; rótulos longos podem ser abreviados e continuam completos na análise. O processamento inicia automaticamente ao abrir a prévia e pode ser interrompido fechando-a. A impressão aguarda sua conclusão. As janelas da análise são explícitas e podem diferir do trecho impresso. Os limites de cada faixa e o restante não impresso são
+antes do desenho. Na prévia, um painel inferior reserva espaço para FC/P/QRS/QT/QTcF e três maiores scores por modelo. Isso reduz a área disponível ao traçado sem mudar o ganho ou a velocidade. Todos os modelos disponíveis são listados, inclusive indisponibilidade; rótulos longos podem ser abreviados e continuam completos na análise. O processamento inicia automaticamente ao abrir a prévia e pode ser interrompido fechando-a. A impressão aguarda sua conclusão. As janelas da análise são explícitas e podem diferir do trecho impresso. Os limites de cada faixa e o restante não impresso são
 informados. Nenhuma amostra é duplicada/perdida nas fronteiras do trecho impresso.
 A grade é física, sem ajuste horizontal/vertical para caber. O pulso ocupa 200 ms
 e 1 mV segundo a escala declarada, que pode continuar provisória. Amplitude que
@@ -82,7 +81,7 @@ elétrica/temporal ou validação clínica. Esses itens continuam não verificad
 Os testes cobrem sinais sintéticos com durações conhecidas, inversão/ganho comum,
 ruído, sinal ausente/curto, saturação/contato, lacunas e relógio incompatível;
 ondas ausentes, QT/T na borda, QRS largo e RR variável; integração Qt offscreen,
-reavaliação e interrupção; derivação por cenário; página A4 vetorial, cobertura
+reavaliação e interrupção; derivação por canal e modo técnico explícito; página A4 vetorial, cobertura
 sem duplicação de amostras, pulso de 200 ms em ambas as velocidades e recusa de
 recorte vertical. O fluxo completo foi exercitado com os três checkpoints reais
 e entrada sintética, sem usar dados pessoais como fixtures ou publicar scores.

@@ -8,6 +8,7 @@ import os
 import zipfile
 import numpy as np
 from .signal import FS, MV_PER_COUNT, FilterConfig, Processor, reprocess, six_leads
+from .orientation import evidence_state,DECODER_ID
 from .contact import ContactTracker, infer_modes, channel_available
 
 
@@ -24,7 +25,7 @@ class Recording:
         self.config = FilterConfig()
         self.processor = Processor(self.config)
         self.meta = dict(format="KardiaOS", version=2, sample_rate=FS,
-                         created=datetime.now().astimezone().isoformat(), synthetic=synthetic,
+                         created=datetime.now().astimezone().isoformat(), synthetic=synthetic, decoder_id=DECODER_ID,
                          start=None, end=None, reason="", mv_per_count=MV_PER_COUNT,
                          amplitude_verified=False, filter_history=[], duration_requested=30,
                          sample_clock="300 Hz nominal; gaps inferred from packet arrival >120 ms",
@@ -77,6 +78,8 @@ class Recording:
         """Never derive voltages from a channel flagged as unavailable."""
         last = self.n if last is None else min(last, self.n)
         source = self.raw[first:last] if raw else self.filtered[first:last]
+        state=evidence_state(self)
+        source=source.astype(float)*np.array([state['decoder'][v] or 1 for v in ('I','II')])
         modes = self.lead_modes[first:last]
         available = channel_available(self.raw[first:last])
         result = np.full((last - first, 6), np.nan)
