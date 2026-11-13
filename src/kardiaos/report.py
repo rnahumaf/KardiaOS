@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from .signal import LEADS
 from .orientation import evidence_summary,amplitude_label
+from .processing import profile_label,empirical
 
 
 def page_plan(recording, speed=25, gain=10, raw=False, offset=0, layout='auto', analysis=None):
@@ -68,10 +69,18 @@ def page_plan(recording, speed=25, gain=10, raw=False, offset=0, layout='auto', 
         first,last=np.searchsorted(times,[row['start'],row['end']])
         row.update(first=int(first),last=int(last))
         v=values[first:last,row['lead']]
+        if selected=='six':
+            finite=v[np.isfinite(v)]
+            low=min(0,float(finite.min())*gain) if len(finite) else 0
+            high=max(0,float(finite.max())*gain) if len(finite) else 0
+            bottom=row['top']-row['h']
+            row['baseline']=bottom+1-low+(row['h']-7-(high-low))/2
+            # The calibration pulse shares the physical scale, not the trace's vertical origin.
+            row['pulse_baseline']=bottom+2
         y=row['baseline']+v*gain
         if np.any(np.isfinite(y)&((y<row['top']-row['h']+1)|(y>row['top']-6))):
             raise ValueError('Amplitude ultrapassa a faixa neste ganho. Reduza o ganho; nenhum traçado foi recortado.')
-        if row['baseline']+gain>row['top']-6:
+        if row.get('pulse_baseline',row['baseline'])+gain>row['top']-6:
             raise ValueError('Pulso de calibração não cabe neste ganho. Reduza o ganho.')
     return dict(layout=selected,rows=rows,begin=begin,start=t0,end=stop,recording_end=end,
                 speed=speed,gain=gain,remaining_seconds=max(0,end-stop),values=values)
@@ -79,6 +88,7 @@ def page_plan(recording, speed=25, gain=10, raw=False, offset=0, layout='auto', 
 
 def pdf_bytes(recording, speed=25.0, gain=10.0, raw=False, offset=0.0, layout='auto', analysis=None):
     plan=page_plan(recording,speed,gain,raw,offset,layout,analysis)
+    if analysis is not None:analysis=analysis_for_page(recording,analysis,plan,raw)
     stream=io.BytesIO(); c=canvas.Canvas(stream,pagesize=landscape(A4),pageCompression=1)
     c.setTitle('KardiaOS - ECG experimental')
     width,height=landscape(A4); cfg=recording.config; times=recording.times[:recording.n]
@@ -94,7 +104,7 @@ def pdf_bytes(recording, speed=25.0, gain=10.0, raw=False, offset=0.0, layout='a
     c.drawString(10*mm,height-27*mm,f"Trecho {offset:.1f} a {plan['end']-plan['begin']:.1f} s de {plan['recording_end']-plan['begin']:.1f} s | Página 1/1")
     filters='Bruto' if raw else f'Filtrado: base {cfg.baseline:g} Hz; passa-baixas {cfg.lowpass:g} Hz; rede {cfg.notch or "desligada"}'
     c.drawRightString(width-10*mm,height-27*mm,filters)
-    c.setFont('Helvetica',6.5);c.drawString(10*mm,179*mm,evidence_summary(recording))
+    c.setFont('Helvetica',7);c.drawString(10*mm,179*mm,profile_label(recording))
     for row in plan['rows']:
         x,top,w,h,baseline=[row[k] for k in ('x','top','w','h','baseline')]; bottom=top-h
         for j in range(int(w)+1):
@@ -104,8 +114,9 @@ def pdf_bytes(recording, speed=25.0, gain=10.0, raw=False, offset=0.0, layout='a
             c.setStrokeColor(HexColor('#cfb89e' if j%5==0 else '#eedfcb'));c.setLineWidth(.35 if j%5==0 else .16)
             c.line(x*mm,(bottom+j)*mm,(x+w)*mm,(bottom+j)*mm)
         c.setStrokeColor(HexColor('#153f43'));c.setLineWidth(.65)
-        pulse=c.beginPath();pulse.moveTo((x+1)*mm,baseline*mm)
-        for dx,dy in [(2,0),(2,gain),(2+.2*speed,gain),(2+.2*speed,0),(4+.2*speed,0)]: pulse.lineTo((x+dx)*mm,(baseline+dy)*mm)
+        pulse_baseline=row.get('pulse_baseline',baseline)
+        pulse=c.beginPath();pulse.moveTo((x+1)*mm,pulse_baseline*mm)
+        for dx,dy in [(2,0),(2,gain),(2+.2*speed,gain),(2+.2*speed,0),(4+.2*speed,0)]: pulse.lineTo((x+dx)*mm,(pulse_baseline+dy)*mm)
         c.drawPath(pulse)
         path=c.beginPath();connected=False
         for k in range(row['first'],row['last']):
@@ -124,44 +135,60 @@ def pdf_bytes(recording, speed=25.0, gain=10.0, raw=False, offset=0.0, layout='a
     if plan['layout']=='di':
         message=f"Somente D1 em {len(plan['rows'])} linhas sucessivas; sem compressão temporal ou preenchimento."
     else:message=f'Seis derivações: faixas superiores de até {118/speed:g} s; D2 contínua de até {250/speed:g} s.'
-    if analysis is not None:message+=' Resultados: janelas indicadas, podem diferir do trecho impresso.'
+    if analysis is not None:message+=' Modelos: janelas identificadas neste trecho.'
     c.drawString(10*mm,23*mm,message)
-    c.drawString(10*mm,17*mm,'A4 paisagem a 100%. Grade: 1 mm / 5 mm. Pulso: 1 mV, 200 ms na escala indicada. Relógio físico não validado.')
-    c.drawString(10*mm,12*mm,'Uso experimental. Lacunas preservadas. Amplitude/polaridade não são confirmadas pela aparência ou pelos escores.')
+    c.drawString(10*mm,17*mm,'A4 paisagem a 100%. Grade: 1 mm / 5 mm. Pulso: 1 mV, 200 ms na escala indicada. Lacunas preservadas.')
+    c.drawString(10*mm,12*mm,'Pesquisa | mV estimados | scores nao sao probabilidades nem diagnosticos.')
     c.drawString(10*mm,7*mm,f"Restante fora desta folha: {plan['remaining_seconds']:.1f} s. Mude o início para outro trecho; o bruto completo permanece preservado.")
     c.showPage();c.save();return stream.getvalue()
 
 
+def analysis_for_page(recording, analysis, plan, raw=False):
+    from .automatic_analysis import analysis_key
+    from .measurements import measure_recording,empty
+    if analysis.get('source_key') != analysis_key(recording):
+        raise ValueError('Analise de outra captura ou processamento. Reavalie o trecho.')
+    begin=plan['start']-plan['begin'];end=plan['end']-plan['begin']
+    result=dict(analysis);m=analysis['measurements']
+    if raw:
+        result.update(measurements=empty('Vista bruta; medidas e modelos usam o tracado processado.'),scenarios=[],unavailable=[])
+        return result
+    if m.get('offset_seconds',begin)<begin-1e-6 or m.get('offset_seconds',begin)+m.get('duration_seconds',0)>end+1e-6:
+        result['measurements']=measure_recording(recording,begin,end-begin)
+    result['scenarios']=[];result['unavailable']=list(analysis.get('unavailable',[]))
+    for item in analysis.get('scenarios',[]):
+        if item['offset_seconds']>=begin-1e-6 and item['offset_seconds']+item['duration_seconds']<=end+1e-6:
+            result['scenarios'].append(item)
+        else:result['unavailable'].append(dict(model=item['model'],reason='Reavaliar a janela exibida.'))
+    return result
+
+
 def draw_analysis(c, analysis):
-    """Compact research panel; all sign scenarios, never a favorable selection."""
+    """One compact panel; only results belonging to the visible time interval."""
     from reportlab.pdfbase.pdfmetrics import stringWidth
     c.setFillColor(HexColor('#183e42'))
-    def line(text, y, bold=False, size=7):
-        font='Helvetica-Bold' if bold else 'Helvetica'
-        text=str(text).replace('−','-').replace('≥','>=')
-        while stringWidth(text,font,size)>277*mm: text=text[:-4]+'...'
+    def line(text,y,bold=False,size=7.5):
+        font='Helvetica-Bold' if bold else 'Helvetica';text=str(text).replace('≥','>=')
+        while stringWidth(text,font,size)>277*mm:text=text[:-4]+'...'
         c.setFont(font,size);c.drawString(10*mm,y*mm,text)
     m=analysis['measurements'];metrics=m['metrics']
-    line('MEDICOES EXPERIMENTAIS DE DI | 300 Hz nominais | nao validadas clinicamente',73,True)
+    line(f"MEDICOES DE DI | {m.get('offset_seconds',0):g}-{m.get('offset_seconds',0)+m.get('duration_seconds',0):g} s",73,True)
     parts=[]
     for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF')]:
         v=metrics[key];parts.append(name+': '+(f"{v['value']:g} {v['unit']}" if v['value'] is not None else 'indisponivel'))
-    line(' | '.join(parts)+f" | trecho medido: {m.get('offset_seconds',0):g}-{m.get('offset_seconds',0)+m.get('duration_seconds',0):g} s",69,True)
+    line(' | '.join(parts),68,True,size=8)
     reasons=list(dict.fromkeys(v['reason'] for v in metrics.values() if v['value'] is None))
-    line('Motivo: '+' / '.join(reasons) if reasons else 'QTcF = QT(ms)/RR(s)^(1/3). Limites relativos de onda; filtros podem alterar duracoes. Nao e medida global de 12 derivacoes.',65,size=6.8)
-    line('QTcF = QT(ms)/RR(s)^(1/3), Fridericia; RR estavel 0,6-1,5 s e QRS <120 ms. Escala/polaridade nao verificadas por estas medidas.',61,size=6.8)
-    line('HIPOTESES DAS REDES | 3 maiores scores por modelo; fluxo normal | nao sao probabilidades nem diagnosticos',57,True)
+    line('Motivo: '+' / '.join(reasons) if reasons else 'Limites de onda estimados no template de DI.',63,size=7)
+    line('QTcF: Fridericia, QT(ms)/RR(s)^(1/3). Metodo e criterios: documentacao tecnica.',59,size=7)
+    line('HIPOTESES DOS MODELOS | maiores scores',54,True)
     entries=[]
+    names={'ecgfounder_1l':'ECGFounder 1L','deeppsp_2l':'DeepPSP 2L','deeppsp_6l':'DeepPSP 6L'}
     for item in analysis.get('scenarios',[]):
-        prefix={'ecgfounder_1l':'ECGFounder 1L','deeppsp_2l':'DeepPSP 2L','deeppsp_6l':'DeepPSP 6L'}.get(item['model'],item['model'])
-        prefix+=f" | {item['hypothesis']} | {item['offset_seconds']:g}-{item['offset_seconds']+10:g} s | "
+        prefix=names.get(item['model'],item['model'])+f" | {item['offset_seconds']:g}-{item['offset_seconds']+item['duration_seconds']:g} s | "
         top=sorted(item['scores'],key=lambda v:v['score'],reverse=True)[:3]
-        labels=[]
-        for v in top:
-            name=v['name'];name=name if len(name)<=43 else name[:40]+'...'
-            labels.append(f"{name}: {v['score']:.4f}")
+        labels=[f"{v['name'][:42]}: {v['score']:.4f}" for v in top]
         entries.append(prefix+(' ; '.join(labels) if labels else 'Indisponivel: '+item.get('reason','sem saida valida')))
-    entries.extend(v['model']+' | Indisponivel: '+v['reason'] for v in analysis.get('unavailable',[]))
-    if not entries: entries=['Analise das redes em andamento.' if analysis.get('status')=='running' else 'Sem escores disponiveis. '+analysis.get('reason','')]
-    for i,text in enumerate(entries[:10]):line(text,53-3*i,size=6.5)
-    if analysis.get('status')!='completed':line('RESULTADO PARCIAL / '+analysis.get('status','indisponivel'),25,True,size=6.5)
+    entries.extend(names.get(v['model'],v['model'])+' | Indisponivel: '+v['reason'] for v in analysis.get('unavailable',[]))
+    if not entries:entries=['Sem scores nesta vista.' if analysis.get('status')=='completed' else 'Analise local em andamento.']
+    for i,text in enumerate(entries[:3]):line(text,49-6*i,size=7)
+    if analysis.get('status')!='completed':line('PARCIAL / '+analysis.get('status','indisponivel'),29,True,size=7)

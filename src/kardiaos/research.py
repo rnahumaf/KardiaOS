@@ -8,6 +8,7 @@ import sys
 import numpy as np
 from .orientation import evidence_state,normal_signs
 from .signal import six_leads
+from .processing import profile_info, model_values, empirical
 
 CATALOG_PATH = Path(__file__).parent / 'assets' / 'research_catalog.json'
 
@@ -52,12 +53,12 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
     if not isinstance(factor, (int, float)) or not np.isfinite(factor) or factor <= 0:
         reasons.append('Fator de amplitude inválido.')
     begin = float(r.meta['start']) + float(offset)
-    left = int(np.searchsorted(r.times[:r.n], begin, side='left'))
+    left = int(np.searchsorted(r.times[:r.n], begin-1e-7, side='left'))
     right = left + 3000
     end = float(r.meta.get('end') or r.last_time) + 1 / 300
-    result.update(first_sample=left, last_sample=right, offset_seconds=float(offset), duration_seconds=10,
+    result.update(first_sample=left, last_sample=right, offset_seconds=float(r.times[left]-r.meta['start']) if left<r.n else float(offset), requested_offset_seconds=float(offset), duration_seconds=10,
                   input_sample_rate=300, model_sample_rate=500, leads=model['leads'],
-                  calibration_verified=calibration_valid(r), evidence=evidence_state(r))
+                  calibration_verified=calibration_valid(r) and not empirical(r), evidence=evidence_state(r), operational_profile=profile_info(r))
     if right > r.n or left >= r.n or r.times[min(right - 1, r.n - 1)] >= end:
         reasons.append('O trecho selecionado precisa conter 10 s completos; não há preenchimento artificial.')
         return result
@@ -87,10 +88,7 @@ def analyze(recording, model_key, offset=0.0):
     try:
         cfg = runtime_config()
         left, right = result['first_sample'], result['last_sample']
-        signs=normal_signs(recording,model_key)
-        raw=recording.raw[left:right,:len(signs)].astype(float)*np.asarray(signs)
-        if model_key=='deeppsp_6l':raw=six_leads(raw)
-        values=raw.T*recording.meta['mv_per_count']
+        values=model_values(recording, model_key, left, right)
         payload = io.BytesIO()
         np.savez(payload, values_mv=values, model_key=np.array(model_key))
         worker = Path(__file__).with_name('research_worker.py')
@@ -98,7 +96,7 @@ def analyze(recording, model_key, offset=0.0):
             worker = Path(sys.executable).parent / 'source' / 'src' / 'kardiaos' / 'research_worker.py'
         env = dict(os.environ, PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1', MPLBACKEND='Agg')
         # The request is anonymous numeric data over local process pipes, never a network request.
-        process = subprocess.run([cfg['python'], '-I', str(worker), '--models', cfg['models_dir']],
+        process = subprocess.run([cfg['python'], '-I', '-B', str(worker), '--models', cfg['models_dir']],
                                  input=payload.getvalue(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  timeout=180, env=env, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if process.returncode:

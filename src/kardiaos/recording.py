@@ -10,6 +10,7 @@ import numpy as np
 from .signal import FS, MV_PER_COUNT, FilterConfig, Processor, reprocess, six_leads
 from .orientation import evidence_state,DECODER_ID
 from .contact import ContactTracker, infer_modes, channel_available
+from .processing import scale_and_signs, profile_info, set_profile
 
 
 class Recording:
@@ -78,8 +79,8 @@ class Recording:
         """Never derive voltages from a channel flagged as unavailable."""
         last = self.n if last is None else min(last, self.n)
         source = self.raw[first:last] if raw else self.filtered[first:last]
-        state=evidence_state(self)
-        source=source.astype(float)*np.array([state['decoder'][v] or 1 for v in ('I','II')])
+        factor, signs = scale_and_signs(self)
+        source=source.astype(float)*np.array(signs)
         modes = self.lead_modes[first:last]
         available = channel_available(self.raw[first:last])
         result = np.full((last - first, 6), np.nan)
@@ -87,7 +88,7 @@ class Recording:
         six = (modes == 6) & available.all(axis=1) & self.quality[first:last]
         result[one, 0] = source[one, 0]
         result[six] = six_leads(source[six])
-        return result * self.meta["mv_per_count"]
+        return result * factor
 
 
 def save_recording(path, recording):
@@ -99,6 +100,7 @@ def save_recording(path, recording):
         np.save(output, value, allow_pickle=False)
         blobs[name + ".npy"] = output.getvalue()
     meta = dict(recording.meta, version=2, filters=recording.config.to_dict(), hashes={k: hashlib.sha256(v).hexdigest() for k, v in blobs.items()})
+    meta['operational_profile'] = profile_info(recording)
     path = Path(path)
     temporary = path.with_suffix(path.suffix + ".tmp")
     try:
@@ -158,6 +160,11 @@ def load_recording(path):
         raise ValueError("Derivações incompatíveis com os marcadores de contato.")
     result.lead_modes[:n] = modes
     result.n, result.meta = n, meta
+    stored_profile = meta.get("operational_profile")
+    if stored_profile is not None:
+        if not isinstance(stored_profile, dict) or stored_profile.get("schema") != 1:
+            raise ValueError("Perfil operacional invalido.")
+        set_profile(result, stored_profile.get("id"))
     result.configure(config)
     result.gaps = int(np.sum(np.diff(times) > 0.12))
     return result

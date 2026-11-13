@@ -83,7 +83,8 @@ def test_technical_mode_explicit_and_never_enters_standard_print():
     assert analysis_key(r)!=analysis_key(r,technical_mode=True)
     with pytest.raises(ValueError,match='tecnica'):pdf_bytes(r,layout='di',analysis=technical)
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=normal))).pages[0].extract_text()
-    assert 'FC: 60 bpm' in text and 'Posicao fisica:' in text and 'nao validada' in text
+    assert 'FC: 60 bpm' in text and 'Referencia por canal' in text
+    assert normal['evidence']['decoder']=={'I':None,'II':None}
     assert 'I+ II-' not in text and 'I- II+' not in text
 
 def test_timings_independent_of_declared_position_and_decoder_sign():
@@ -92,22 +93,18 @@ def test_timings_independent_of_declared_position_and_decoder_sign():
     assert a['metrics']==b['metrics']
 
 
-def test_explicit_technical_checkbox_does_not_pollute_normal_cache(monkeypatch):
-    from PySide6.QtWidgets import QApplication
+def test_normal_interface_has_no_sign_comparison_controls(monkeypatch):
+    from PySide6.QtWidgets import QApplication,QCheckBox
     from kardiaos.analysis_dialog import AutomaticAnalysisDialog
-    from kardiaos.preview import PrintPreview
     from test_analysis_dialog import wait
     app=QApplication.instance() or QApplication([])
     monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
     r=signal_record();dialog=AutomaticAnalysisDialog(r,autostart=False)
     dialog.start();wait(app,lambda:dialog.result is not None and not dialog.busy())
     assert dialog.score_table.rowCount()==15 and r._automatic_analysis['mode']=='normal'
-    dialog.technical.setChecked(True)
-    wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.result['mode']=='technical' and dialog.score_table.rowCount()==50
-    assert r._automatic_analysis is None
-    dialog.reject();preview=PrintPreview(r,autostart=False)
-    assert preview.analysis['mode']=='normal' and preview.analysis['status']=='running';preview.close()
+    assert not dialog.findChildren(QCheckBox) and not hasattr(dialog,'technical')
+    dialog.reject()
+
 
 def test_physical_declaration_dialog_does_not_validate_other_states():
     from PySide6.QtWidgets import QApplication

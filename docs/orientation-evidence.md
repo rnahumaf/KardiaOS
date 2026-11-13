@@ -1,5 +1,9 @@
 # Evidência de aquisição — 0.5.0
 
+Este contrato vale para evidência validada/revisada, separada do novo
+[perfil operacional assumido](research-profile.md). Selecionar o perfil não
+altera nenhum destes estados.
+
 Três estados independentes, por captura:
 
 | Estado | O que informa | O que não estabelece |
@@ -13,7 +17,7 @@ o bruto; I− é x−1, nunca sinônimo de onda R positiva/negativa. Identidade 
 e polaridade não são a mesma evidência. Nenhum multiplicador é escolhido pelo
 maior score, morfologia ou aparência do QRS.
 
-No fluxo normal, os modelos morfológicos exigem convenção documentada dos canais
+No perfil Referência por canal, os modelos morfológicos exigem convenção documentada dos canais
 usados: I para ECGFounder; I e II para DeepPSP 2L/6L. Se faltar, ficam
 indisponíveis, com motivo. Havendo referência revisada, aplica-se uma única
 convenção e recalculam-se III/aVR/aVL/aVF a partir dos canais orientados; o bruto
@@ -35,7 +39,7 @@ Nenhuma interpretação clínica de amplitudes é disponibilizada sem sua refer�
 
 O modo técnico precisa ser marcado explicitamente e compara I+/I− ou as quatro
 combinações de I/II, independentemente do estado de amplitude. É pesquisa de
-sensibilidade, não parte do fluxo normal. Pode exportar JSON, mas nunca reutiliza
+sensibilidade, não parte do fluxo normal. Não aparece na interface normal. Seus dados podem ser exportados por código, mas nunca reutiliza
 o cache normal nem entra na folha padrão. A impressão rejeita resultados técnicos.
 
 ## Proveniência e migração

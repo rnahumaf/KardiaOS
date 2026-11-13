@@ -15,6 +15,8 @@ from .recording import Recording, save_recording, load_recording
 from .paper import ECGPaper, Ruler, screen_geometry, screen_key
 from .report import pdf_bytes
 from .contact import channel_available
+from .processing import EMPIRICAL,REFERENCED,DEFAULT_FILTERS,set_profile,profile_id,profile_label
+from .automatic_analysis import analysis_key,cache_analysis,cached_analysis
 
 STYLE = """
 QMainWindow, QWidget { background: #f5f7f7; color: #203735; }
@@ -66,14 +68,17 @@ def synthetic_pairs(first, count):
 
 
 class Window(QMainWindow):
-    def __init__(self, demo=False, diagnostic=False):
+    def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.5.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.6.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
-        self.settings = QSettings("KardiaOS", "KardiaOS")
+        self.settings = settings if settings is not None else QSettings("KardiaOS", "KardiaOS")
+        self._preferences_ready=False
+        self._analysis_thread=None;self._analysis_pending=False;self._closing_analysis=False
+        self._analysis_timer=QTimer(self);self._analysis_timer.setSingleShot(True);self._analysis_timer.setInterval(400);self._analysis_timer.timeout.connect(self.start_background_analysis)
         self.recording = None
         self.stream = None
         self.live = self.replaying = self.dirty = False
@@ -150,6 +155,7 @@ class Window(QMainWindow):
         chart_column.addWidget(self.paper, 1)
         self.paper_note = label("* Amplitude estimada. Grade calculada pelas dimensões físicas do monitor.", "muted", True)
         chart_column.addWidget(self.paper_note)
+        self.analysis_summary=label("", "muted", True);self.analysis_summary.hide();chart_column.addWidget(self.analysis_summary)
         playback = QHBoxLayout()
         self.play_button = QPushButton("Reproduzir")
         self.play_button.clicked.connect(self.replay)
@@ -180,11 +186,17 @@ class Window(QMainWindow):
         self.research_button = QPushButton("Análise automática")
         self.research_button.clicked.connect(self.open_research)
         sidebar.addWidget(self.research_button)
+        self.autorun=QCheckBox("Analisar ao concluir");self.autorun.setChecked(self.settings.value("research/autorun",True,type=bool));sidebar.addWidget(self.autorun)
         sidebar.addSpacing(8)
         rule = QFrame()
         rule.setObjectName("rule")
         sidebar.addWidget(rule)
         sidebar.addWidget(label("PROCESSAMENTO", "section"))
+        self.profile_combo=QComboBox()
+        self.profile_combo.addItem("Pesquisa · mV estimados",EMPIRICAL)
+        self.profile_combo.addItem("Referência por canal",REFERENCED)
+        self.profile_combo.setCurrentIndex(max(0,self.profile_combo.findData(self.settings.value('research/profile',EMPIRICAL))))
+        sidebar.addWidget(self.profile_combo)
         self.auto = QCheckBox("Ajuste automático")
         self.auto.setChecked(True)
         self.auto.toggled.connect(self.auto_changed)
@@ -217,7 +229,7 @@ class Window(QMainWindow):
         self.cal_button.clicked.connect(self.calibrate)
         sidebar.addWidget(self.cal_button)
         sidebar.addStretch(1)
-        sidebar.addWidget(label("Uso experimental. Filtros reduzem ruído, mas também alteram a morfologia. O bruto é preservado.", "muted", True))
+        sidebar.addWidget(label("Detalhes do perfil em Análise > Detalhes técnicos.", "muted", True))
         side_scroll = QScrollArea()
         side_scroll.setFrameShape(QFrame.Shape.NoFrame)
         side_scroll.setWidgetResizable(True)
@@ -232,8 +244,17 @@ class Window(QMainWindow):
         self.tick_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.tick_timer.timeout.connect(self.tick)
         self.tick_timer.start(16)
-        self.update_buttons()
-        self.auto_changed(True)
+        for combo,key,default in ((self.base,'filters/baseline',.5),(self.smooth,'filters/lowpass',40),(self.notch,'filters/notch',60),(self.speed,'display/speed',25),(self.gain,'display/gain',10)):
+            combo.blockSignals(True);combo.setCurrentIndex(max(0,combo.findData(float(self.settings.value(key,default)))));combo.blockSignals(False)
+        self.auto.blockSignals(True);self.auto.setChecked(self.settings.value('filters/auto',False,type=bool));self.auto.blockSignals(False)
+        self.duration.setValue(int(self.settings.value('capture/duration',30)))
+        self.raw_check.setChecked(self.settings.value('display/raw',False,type=bool))
+        self._preferences_ready=True
+        self.profile_combo.currentIndexChanged.connect(self.profile_changed)
+        self.autorun.toggled.connect(self.autorun_changed)
+        self.duration.valueChanged.connect(self.save_preferences)
+        self.scales_changed();self.update_buttons()
+        self.auto_changed(self.auto.isChecked())
         QTimer.singleShot(100, self.bind_screen)
 
     def combo(self, layout, title, items, index):
@@ -259,7 +280,7 @@ class Window(QMainWindow):
         self.paper.ppmy = float(self.settings.value(f"screens/{key}/y", y))
         source = "ajustada com régua" if self.settings.value(f"screens/{key}/manual", False, type=bool) else "dimensões informadas pelo monitor"
         physical = screen.physicalSize()
-        self.paper_note.setText(f"Grade: {physical.width():.0f} × {physical.height():.0f} mm · {source}. * Amplitude estimada até calibração.")
+        self.paper_note.setText(f"Grade física: {source} · amplitudes estimadas pelo perfil ativo.")
         self.paper.update()
 
     def set_state(self, text, detail=None):
@@ -270,6 +291,7 @@ class Window(QMainWindow):
             self.detail.setText(detail)
 
     def auto_changed(self, checked):
+        self.save_preferences()
         if not hasattr(self, "base"):
             return
         for combo in (self.base, self.smooth, self.notch):
@@ -290,15 +312,19 @@ class Window(QMainWindow):
         if self.recording and self.recording.config != config:
             self.recording.configure(config)
             self.dirty = True
+            self.schedule_analysis()
+        self.save_preferences()
         delay = Processor(config).delay_ms()
         self.latency.setText(f"Filtro: ~{delay:.0f} ms a 10 Hz\nBuffer visual: 60 ms. Latência do aparelho não medida.")
         self.paper.update()
 
     def raw_toggled(self, checked):
         self.paper.raw_mode = checked
+        self.save_preferences()
         self.paper.update()
 
     def scales_changed(self):
+        self.save_preferences()
         self.paper.speed, self.paper.gain = self.speed.currentData(), self.gain.currentData()
         self.scale_label.setText(f"{self.paper.speed:g} mm/s  ·  {self.paper.gain:g} mm/mV*")
         self.paper.update()
@@ -319,7 +345,11 @@ class Window(QMainWindow):
         if self.live or not self.protect_recording():
             return
         self.replaying = False
+        self._analysis_timer.stop()
+        if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
+        self.analysis_summary.hide()
         self.recording = Recording(self.demo)
+        set_profile(self.recording,self.profile_combo.currentData())
         self.recording.meta["duration_requested"] = self.duration.value()
         self.recording.meta["mv_per_count"] = float(self.settings.value("amplitude/factor", MV_PER_COUNT))
         self.recording.meta["amplitude_verified"] = self.settings.value("amplitude/verified", False, type=bool)
@@ -418,6 +448,7 @@ class Window(QMainWindow):
             self.paper.overlay_detail = "Toque os eletrodos e clique em Iniciar para tentar novamente."
             self.set_state("Captura não iniciada", self.stop_reason or "6L não encontrado.")
         self.update_buttons()
+        self.schedule_analysis()
 
     def tick(self):
         now = time.monotonic()
@@ -500,6 +531,7 @@ class Window(QMainWindow):
         self.play_button.setEnabled(stable and not self.live)
         self.seek.setEnabled(stable and not self.live)
         self.cal_button.setEnabled(not self.live)
+        self.profile_combo.setEnabled(not self.live)
 
     def replay(self):
         if not self.recording or self.live:
@@ -543,6 +575,11 @@ class Window(QMainWindow):
         try:
             recording = load_recording(filename)
             self.recording = recording
+            stored=recording.meta.get('operational_profile')
+            identifier=stored['id'] if stored else self.profile_combo.currentData()
+            set_profile(recording,identifier)
+            self.profile_combo.blockSignals(True);self.profile_combo.setCurrentIndex(self.profile_combo.findData(identifier));self.profile_combo.blockSignals(False)
+            if not stored and identifier==EMPIRICAL:recording.configure(FilterConfig(self.base.currentData(),self.smooth.currentData(),self.notch.currentData()))
             self.paper.recording = recording
             self.paper.cursor = recording.last_time
             self.paper.overlay = "" if recording.meta.get("start") is not None else "Captura sem trecho estabilizado"
@@ -553,8 +590,57 @@ class Window(QMainWindow):
             self.metrics.setText(f"{recording.n:,} pares de amostras\n{recording.gaps} interrupção(ões)")
             self.timer_label.setText(self.clock(recording.last_time - float(recording.meta.get("start") or 0), True))
             self.update_buttons()
+            self.schedule_analysis()
         except Exception as exc:
             QMessageBox.warning(self, "Captura inválida", str(exc))
+
+    def save_preferences(self,*_):
+        if not self._preferences_ready or self.demo:return
+        for key,value in [('research/profile',self.profile_combo.currentData()),('research/autorun',self.autorun.isChecked()),
+            ('filters/auto',self.auto.isChecked()),('filters/baseline',self.base.currentData()),('filters/lowpass',self.smooth.currentData()),('filters/notch',self.notch.currentData()),
+            ('display/speed',self.speed.currentData()),('display/gain',self.gain.currentData()),('display/raw',self.raw_check.isChecked()),('capture/duration',self.duration.value())]:self.settings.setValue(key,value)
+
+    def profile_changed(self,*_):
+        self.save_preferences()
+        if self.recording is not None:
+            set_profile(self.recording,self.profile_combo.currentData());self.dirty=True;self.paper.update();self.schedule_analysis()
+
+    def autorun_changed(self,*_):
+        self.save_preferences()
+        if not self.autorun.isChecked():
+            self._analysis_timer.stop();self._analysis_pending=False
+            if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
+        else:self.schedule_analysis()
+
+    def schedule_analysis(self):
+        if self.live or self.demo or not self.autorun.isChecked():return
+        if self.recording is None or self.recording.meta.get('start') is None:return
+        self.analysis_summary.setText('Preparando análise local.');self.analysis_summary.show();self._analysis_timer.start()
+
+    def start_background_analysis(self):
+        if self.live or self.recording is None or self._closing_analysis or not self.autorun.isChecked():return
+        if self._analysis_thread is not None and self._analysis_thread.isRunning():
+            self._analysis_pending=True;self._analysis_thread.requestInterruption();return
+        self._analysis_pending=False;r=self.recording
+        previous=cached_analysis(r)
+        if previous:self.background_result(r,previous);return
+        from .analysis_dialog import AutomaticThread
+        self._analysis_thread=AutomaticThread(r,self)
+        self._analysis_thread.result_ready.connect(lambda value,record=r:self.background_result(record,value))
+        self._analysis_thread.finished.connect(self.background_finished)
+        self.analysis_summary.setText('Analisando o registro em segundo plano…');self.analysis_summary.show();self._analysis_thread.start()
+
+    def background_result(self,record,result):
+        if self.recording is not record:return
+        if cache_analysis(record,result):
+            count=sum(bool(v.get('scores')) for v in result.get('scenarios',[]))
+            self.analysis_summary.setText(f'{count} modelos concluídos · ECG com resultados em Exportar PDF / Imprimir.')
+        elif result.get('status')=='cancelled':self.analysis_summary.setText('Análise interrompida.')
+        else:self.analysis_summary.setText(result.get('reason','Processamento alterado; reavaliando o registro.'))
+
+    def background_finished(self):
+        if self._closing_analysis:self.close()
+        elif self._analysis_pending:self._analysis_timer.start()
 
     def open_research(self):
         if self.live:
@@ -622,9 +708,13 @@ class Window(QMainWindow):
             if self.recording:
                 self.recording.meta.update(mv_per_count=factor.value(), amplitude_verified=verified.isChecked())
                 self.dirty = True
+                self.schedule_analysis()
             self.load_screen()
 
     def closeEvent(self, event):
+        self._analysis_timer.stop()
+        if not self.live and self._analysis_thread is not None and self._analysis_thread.isRunning():
+            self._closing_analysis=True;self._analysis_thread.requestInterruption();event.ignore();return
         if self.live:
             self.stop("Janela encerrada pelo usuário")
             event.ignore()
@@ -632,6 +722,7 @@ class Window(QMainWindow):
         elif self.protect_recording():
             event.accept()
         else:
+            self._closing_analysis=False
             event.ignore()
 
 
@@ -661,6 +752,13 @@ def main():
             outcome = dict(status="passed", version=__version__, synthetic_only=True)
         except Exception as exc:
             outcome = dict(status="failed", version=__version__, error=type(exc).__name__ + ": " + str(exc), synthetic_only=True)
+        # Offscreen smoke jobs do not enter app.exec(); dispose their widgets
+        # while QApplication still owns the Qt runtime, including deferred objects.
+        from PySide6.QtCore import QCoreApplication,QEvent
+        app.processEvents()
+        for widget in app.topLevelWidgets():widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
+        app.processEvents()
         if args.validation_output:
             Path(args.validation_output).write_text(json.dumps(outcome, ensure_ascii=False, indent=2), encoding="utf-8")
         sys.exit(0 if outcome["status"] == "passed" else 1)

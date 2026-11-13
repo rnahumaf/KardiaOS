@@ -1,6 +1,7 @@
 """Model-specific offline preprocessing. Sources and revisions: assets/research_catalog.json.
 
-No visual filters, missing-lead filling, beat replacement or rhythm correction.
+The recorded operational profile may filter upstream. This worker only applies
+the pinned model contract; no missing-lead filling, beat replacement or rhythm correction.
 The 300 -> 500 Hz polyphase adapter changes sampling density, not bandwidth.
 """
 import numpy as np

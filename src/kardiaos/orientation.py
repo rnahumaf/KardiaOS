@@ -51,6 +51,8 @@ def model_channels(key):return ('I',) if key=='ecgfounder_1l' else ('I','II')
 
 
 def normal_signs(recording,key):
+    from .processing import empirical
+    if empirical(recording):return (1,)*len(model_channels(key))
     if recording.meta.get('synthetic'):return (1,)*len(model_channels(key))
     state=evidence_state(recording);values=tuple(state['decoder'][v] for v in model_channels(key))
     return values if all(v is not None for v in values) else None
@@ -65,5 +67,7 @@ def evidence_summary(recording):
 
 
 def amplitude_label(recording):
+    from .processing import empirical
+    if empirical(recording):return 'mV estimados | perfil de pesquisa'
     state=evidence_state(recording)
     return 'amplitude: referencia revisada por canal' if all(state['amplitude'].values()) else 'amplitude estimada, nao calibrada; evidencia por canal'

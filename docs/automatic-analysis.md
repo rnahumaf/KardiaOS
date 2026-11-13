@@ -2,17 +2,19 @@
 
 ## Medições experimentais de DI
 
-O programa escolhe o trecho contínuo mais longo após estabilização, limitado aos
-primeiros 30 segundos desse trecho. Exige pelo menos 10 segundos, 300 Hz nominais,
+O programa escolhe o trecho contínuo mais longo dentro da janela solicitada,
+limitado a até 30 segundos desse trecho. Exige pelo menos 10 segundos, 300 Hz nominais,
 tempos monotônicos espaçados por 1/300 s, contato aceito, sinal variável e sem
 saturação. Uma tela de artefatos compara energia acima de 45 Hz à de 5–40 Hz.
 Isso não detecta todo ruído e não é um escore clínico de qualidade.
 
-São usados o bruto e filtros próprios de fase zero: 0,5–40 Hz para morfologia,
-5–25 Hz para detecção por energia da derivada. A filtragem pode alterar limites
-de P/T/QRS; fase zero não significa preservação integral de morfologia. Ajustes
-visuais do usuário não entram na análise. Contagens são usadas diretamente:
-ganho comum positivo e inversão global não definem os tempos encontrados.
+No perfil de pesquisa, a morfologia vem do mesmo DI filtrado da exibição e
+impressão. Uma banda auxiliar 5–25 Hz de fase zero detecta complexos pela energia
+da derivada. No perfil Referência por canal, mantém-se o método anterior no bruto
+com 0,5–40 Hz de fase zero para morfologia. Os filtros podem alterar limites de
+onda; nem fase zero garante preservação integral. Ganho comum positivo e inversão
+global não definem os tempos encontrados. O escopo é limitado à janela solicitada,
+e a folha nunca recebe medidas externas ao seu intervalo.
 
 Dois limiares de detecção precisam concordar. São necessários cinco complexos
 candidatos, intervalos de 0,3–2 s e repetibilidade do template mediano. FC é
@@ -25,7 +27,7 @@ de 5% e 10% do pico, ou três vezes o ruído residual. Exige-se amplitude separa
 do ruído, retorno à base antes da borda e concordância dos limites em até 20 ms.
 As faixas técnicas são P 40–200 ms, QRS 40–200 ms, onda T 60–350 ms e QT
 200–600 ms. Elas são limites do algoritmo, não faixas de normalidade clínica.
-Valores fora delas são indisponíveis, sem extrapolar ou completar ondas.
+Valores fora delas ou a até uma amostra de suas bordas são indisponíveis, sem extrapolar ou completar ondas.
 Ondas bifásicas, P/T sobrepostas, U, bloqueios, ruído periódico e baixa amplitude
 podem confundir o algoritmo. Não há validação contra delineação de especialistas.
 
@@ -42,11 +44,11 @@ Referências de contexto, sem alegar equivalência/validação do algoritmo loca
 
 ## Hipóteses das redes
 
-O fluxo normal exige referência revisada da convenção do decoder por canal;
-posição física e amplitude são estados independentes. Sem essa referência,
-hipóteses morfológicas ficam indisponíveis, sem impedir tempos invariantes ao
-sinal. A comparação de inversões existe apenas no modo técnico explícito,
-fora da impressão. Consulte [contrato de evidência](orientation-evidence.md).
+O perfil Pesquisa — mV estimados permite os modelos sob pressupostos
+operacionais explicitamente separados de evidência. O perfil Referência por
+canal exige convenção documentada. A comparação de inversões só existe na API
+técnica explícita e nos testes, fora da interface normal e da impressão.
+Consulte [perfil operacional](research-profile.md) e [evidências](orientation-evidence.md).
 
 O primeiro trecho tecnicamente aceito de 10 s, buscado a cada 300 amostras (1 s nominal, saltando lacunas), é usado
 por modelo. Não é selecionado pelo score. Se nenhum trecho servir, há motivo de
@@ -62,7 +64,7 @@ Não há calibração estatística nem validação de domínio KardiaMobile.
 
 DI em linhas utiliza janelas contíguas de 10 s a 25 mm/s ou 5 s a 50 mm/s. Até
 seis linhas podem caber, conforme a amplitude e o ganho; a altura é planejada
-antes do desenho. Na prévia, um painel inferior reserva espaço para FC/P/QRS/QT/QTcF e três maiores scores por modelo. Isso reduz a área disponível ao traçado sem mudar o ganho ou a velocidade. Todos os modelos disponíveis são listados, inclusive indisponibilidade; rótulos longos podem ser abreviados e continuam completos na análise. O processamento inicia automaticamente ao abrir a prévia e pode ser interrompido fechando-a. A impressão aguarda sua conclusão. As janelas da análise são explícitas e podem diferir do trecho impresso. Os limites de cada faixa e o restante não impresso são
+antes do desenho. Na prévia, um painel inferior reserva espaço para FC/P/QRS/QT/QTcF e três maiores scores por modelo. Isso reduz a área disponível ao traçado sem mudar o ganho ou a velocidade. Todos os modelos disponíveis são listados, inclusive indisponibilidade; rótulos longos podem ser abreviados e continuam completos na análise. O processamento inicia automaticamente ao abrir a prévia e pode ser interrompido fechando-a. A impressão aguarda sua conclusão. As janelas da análise são explícitas e devem estar contidas no intervalo da folha; resultados de outro sinal ou fora da janela não são impressos. Os limites de cada faixa e o restante não impresso são
 informados. Nenhuma amostra é duplicada/perdida nas fronteiras do trecho impresso.
 A grade é física, sem ajuste horizontal/vertical para caber. O pulso ocupa 200 ms
 e 1 mV segundo a escala declarada, que pode continuar provisória. Amplitude que

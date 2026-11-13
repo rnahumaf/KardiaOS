@@ -32,7 +32,7 @@ def test_print_unavailable_has_reason_and_never_fabricates_score():
 
 def test_preview_automatically_runs_caches_and_cancels(monkeypatch):
     app=QApplication.instance() or QApplication([])
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel:automatic_analysis(r,emit,cancel,fake_infer))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
     r=signal_record();p=PrintPreview(r)
     assert not p.save_button.isEnabled()
     wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning())
@@ -42,7 +42,7 @@ def test_preview_automatically_runs_caches_and_cancels(monkeypatch):
     def slow(key,values,cancel):
         while not cancel():time.sleep(.01)
         raise Cancelled()
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel:automatic_analysis(r,emit,cancel,slow))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,slow,**kw))
     p=PrintPreview(signal_record());p.show();app.processEvents();p.reject()
     wait(app,lambda:not p.thread.isRunning() and not p.isVisible())
     assert p.analysis['status']=='cancelled'

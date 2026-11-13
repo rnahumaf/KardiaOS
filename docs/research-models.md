@@ -36,17 +36,18 @@ os códigos DeepPSP vêm da tabela de classes original.
 
 ## Entrada e processamento
 
-A entrada é o bruto M2 de 300 Hz nominais. São selecionadas 3000 amostras contínuas
-a partir do início aceito mais o deslocamento escolhido. `lead_values(raw=True)`
-aplica a escala declarada e deriva apenas as quatro derivações de membros pelas
-identidades elétricas. Não são criadas precordiais. I–II requer disponibilidade
-do modo 6L, pois essa é a forma conservadora de reconhecer ambos os canais M2.
+Na versão 0.6.0, o perfil de pesquisa fornece o mesmo sinal filtrado e escalado
+da exibição, em 300 Hz nominais; o perfil Referência por canal fornece o bruto
+com sua convenção documentada. O worker sempre aplica o contrato abaixo.
+Essa diferença de entrada é rastreada como `input_stage`; a filtragem adicional
+do perfil é experimental, não parte da validação original dos modelos.
 
-Pré-condições: escala e polaridade explicitamente referenciadas, 10 segundos
-completos, contato/qualidade aceitos, marcadores M2 disponíveis, sem lacunas,
-saturação ou sinal constante. Sinal incompatível resulta em inconclusivo, sem
-scores. O reconhecimento de contato e qualidade é uma heurística de aquisição,
-não um detector validado de todos os artefatos.
+São necessárias 3000 amostras contínuas, contato/qualidade aceitos, marcadores
+disponíveis, sem saturação, lacunas ou sinal constante. I-II requer modo 6L.
+Somente as quatro derivações de membros são calculadas; não há precordiais.
+A ausência de referência elétrica não bloqueia por si só o perfil assumido,
+mas não torna a inferência calibrada. O fluxo legado `analyze` com exigência de
+calibração continua distinto da análise automática operacional.
 
 Os dois pipelines reamostram 300→500 Hz por `scipy.signal.resample_poly(5,3)`:
 
@@ -62,7 +63,7 @@ A saída é sigmoid por classe, permitindo múltiplos scores altos. Não há cal
 estatística, limiar diagnóstico, validação clínica ou alegação de equivalência a
 ECG de 12 derivações. A adaptação de sinais KardiaMobile a 300 Hz não foi validada
 pelos autores. O notch oficial de 50 Hz é preservado mesmo em rede elétrica 60 Hz;
-a interface descreve esse processamento. Os filtros visuais não entram na análise.
+a interface descreve esse processamento. No perfil de pesquisa, os filtros de exibição antecedem estes filtros do worker; ambos são registrados. Consulte [research-profile.md](research-profile.md).
 
 ## Execução e privacidade
 
@@ -77,7 +78,7 @@ Os pesos ficam em `~/.kardiaos-research/models`, fora do Git e do instalador.
 também fora do Git. A instalação traz o worker e o código dos modelos em `source`.
 O setup resolve redirecionamento de AppData de aplicações Windows empacotadas.
 
-## Verificação realizada nesta integração
+## Histórico de verificação da integração original
 
 41 testes passaram, cobrindo contratos, recusa de entradas incompatíveis,
 calibração, preservação do bruto, mapeamento e reamostragem. Sinais sintéticos

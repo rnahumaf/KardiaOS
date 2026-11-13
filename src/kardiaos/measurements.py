@@ -4,6 +4,7 @@ from scipy.signal import butter, sosfiltfilt, find_peaks, welch
 from scipy.ndimage import uniform_filter1d
 
 from .orientation import evidence_state
+from .processing import empirical, profile_info, scope
 
 FS = 300
 NAMES = {'heart_rate': ('FC por RR mediano', 'bpm'), 'p_duration': ('Duração P', 'ms'),
@@ -11,7 +12,7 @@ NAMES = {'heart_rate': ('FC por RR mediano', 'bpm'), 'p_duration': ('Duração P
 
 
 def empty(reason):
-    return {'status': 'unavailable', 'lead': 'I', 'method': 'template mediano; limites relativos de 5–10%, heurística v1',
+    return {'status': 'unavailable', 'lead': 'I', 'method': 'template mediano; limites relativos de 5–10%, heurística v2',
             'timebase': '300 Hz nominais; relógio físico não validado',
             'calibration': 'Tempos não dependem do ganho comum positivo; mV e orientação não são validados por estas medidas.',
             'metrics': {k: dict(name=n, unit=u, value=None, status='unavailable', reason=reason) for k, (n, u) in NAMES.items()},
@@ -33,14 +34,16 @@ def technical_quality(raw):
     return None
 
 
-def stable_segment(recording, seconds=30):
+def stable_segment(recording, seconds=30, offset=0., duration=None):
     r = recording
     if r is None or not r.n or r.meta.get('start') is None: return None, 'Sem captura estabilizada.'
     if r.meta.get('sample_rate') != FS: return None, 'Frequência diferente de 300 Hz; base temporal incompatível.'
     t = r.times[:r.n]
     if not np.isfinite(t).all() or np.any(np.diff(t) <= 0): return None, 'Base temporal inválida.'
-    start = int(np.searchsorted(t, r.meta['start']))
-    end = int(np.searchsorted(t, r.meta.get('end') or r.last_time, side='right'))
+    request=scope(r,offset,duration)
+    begin=float(r.meta['start'])+request['offset_seconds']
+    start = int(np.searchsorted(t, begin))
+    end = int(np.searchsorted(t, begin+request['duration_seconds']-1e-7, side='right'))
     good = r.quality[:r.n] & (r.lead_modes[:r.n] >= 1) & ((r.raw[:r.n, 0] & 3) == 0)
     good[:start] = False; good[end:] = False
     breaks = np.flatnonzero(~np.isclose(np.diff(t), 1 / FS, rtol=0, atol=1e-6)) + 1
@@ -67,21 +70,24 @@ def _boundaries(template, lo, hi, peak, noise, width_limits, quiet=3):
             if not above[j:j + quiet].any(): right = j; break
         if left is None or right is None: return None, 'Limite de onda não separado da borda/onda adjacente.'
         width = (right - left) / FS * 1000
-        if not width_limits[0] <= width <= width_limits[1]: return None, 'Duração fora dos limites deste delineador experimental.'
+        if not width_limits[0]+1000/FS < width < width_limits[1]-1000/FS: return None, 'Duração fora ou próxima dos limites deste delineador experimental.'
         bounds.append((left, right))
     if max(abs(bounds[0][j] - bounds[1][j]) for j in (0, 1)) / FS > .020:
         return None, 'Limites instáveis ao variar o limiar de delineação.'
     return tuple(int(round(np.mean([v[j] for v in bounds]))) for j in (0, 1)), None
 
 
-def measure_recording(recording):
+def measure_recording(recording, offset=0., duration=None):
     result = empty('Limites de onda ainda não determinados.')
-    segment, error = stable_segment(recording)
-    if error: return empty(error)
+    result["operational_profile"]=profile_info(recording)
+    segment, error = stable_segment(recording,offset=offset,duration=duration)
+    if error:
+        for metric in result['metrics'].values(): metric['reason']=error
+        return result
     a, b = segment
     result.update(first_sample=a, last_sample_exclusive=b,
                   offset_seconds=float(recording.times[a] - recording.meta['start']), duration_seconds=(b-a)/FS,
-                  synthetic=bool(recording.meta.get('synthetic')), amplitude_verified=evidence_state(recording)['amplitude']['I'])
+                  synthetic=bool(recording.meta.get('synthetic')), amplitude_verified=False if empirical(recording) else evidence_state(recording)['amplitude']['I'])
     raw = recording.raw[a:b, 0].astype(float)
     error = technical_quality(raw)
     if error:
@@ -91,8 +97,8 @@ def measure_recording(recording):
         for key in keys: result['metrics'][key].update(value=None, status='unavailable', reason=why)
     def value(key, val, **extra):
         result['metrics'][key].update(value=round(float(val), 1), status='experimental', reason='', **extra)
-    x = sosfiltfilt(butter(3, [.5, 40], btype='bandpass', fs=FS, output='sos'), raw)
-    band = sosfiltfilt(butter(3, [5, 25], btype='bandpass', fs=FS, output='sos'), raw)
+    x = recording.lead_values(a,b)[:,0] if empirical(recording) else sosfiltfilt(butter(3, [.5, 40], btype='bandpass', fs=FS, output='sos'), raw)
+    band = sosfiltfilt(butter(3, [5, 25], btype='bandpass', fs=FS, output='sos'), x if empirical(recording) else raw)
     energy = uniform_filter1d(np.gradient(band) ** 2, size=24)
     candidates = []
     for fraction in (.12, .25):

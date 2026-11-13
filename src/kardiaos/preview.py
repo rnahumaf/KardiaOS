@@ -8,7 +8,7 @@ from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QDoubleSpinBox, QFileDialog, QMessageBox, QSizePolicy, QComboBox)
 from .report import pdf_bytes, page_plan
-from .automatic_analysis import analysis_key
+from .automatic_analysis import analysis_key,cache_analysis,cached_analysis
 from .orientation import evidence_state
 
 
@@ -69,13 +69,10 @@ class PrintPreview(QDialog):
         self.resize(1120, 850)
         self.setMinimumSize(800, 600)
         self.recording, self.speed, self.gain, self.raw = recording, speed, gain, raw
-        self.analysis=getattr(recording,"_automatic_analysis",None)
-        if getattr(recording,"_automatic_analysis_key",None)!=analysis_key(recording):self.analysis=None
-        if self.analysis is not None and self.analysis.get("mode")!="normal":self.analysis=None
-        if self.analysis is None:
-            from .measurements import measure_recording
-            self.analysis=dict(status="running",mode="normal",evidence=evidence_state(recording),measurements=measure_recording(recording),scenarios=[],unavailable=[])
-        self.thread=None;self.closing=False
+        from .measurements import measure_recording
+        self.analysis=dict(status='running',mode='normal',source_key=analysis_key(recording),measurements=measure_recording(recording),scenarios=[],unavailable=[])
+        self.thread=None;self.closing=False;self.autostart=autostart
+        self._desired_key=None;self._worker_key=None
         self.data = b""
         self.page_image = None
         layout = QVBoxLayout(self)
@@ -122,7 +119,7 @@ class PrintPreview(QDialog):
         save = self.save_button = QPushButton("Salvar PDF")
         save.clicked.connect(self.save_pdf)
         self.print_button = QPushButton("Imprimir 1 folha")
-        self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")
+        self.print_button.setEnabled(self.printers.count() > 0 and self.analysis is not None and self.analysis["status"]!="running")
         self.print_button.setObjectName("primary")
         self.print_button.clicked.connect(self.print_current)
         close = QPushButton("Fechar")
@@ -132,25 +129,43 @@ class PrintPreview(QDialog):
         layout.addLayout(bottom)
         self.status = QLabel("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF.")
         layout.addWidget(self.status)
-        self.offset.valueChanged.connect(self.refresh)
-        self.layout_choice.currentIndexChanged.connect(self.refresh)
+        self.offset.valueChanged.connect(self.request_analysis)
+        self.layout_choice.currentIndexChanged.connect(self.request_analysis)
+        self.request_analysis()
+
+    def request_analysis(self,*_):
+        from .measurements import measure_recording,empty
+        if self.closing:return
+        try:
+            plan=page_plan(self.recording,self.speed,self.gain,self.raw,self.offset.value(),self.layout_choice.currentData(),dict(mode='normal'))
+        except ValueError as exc:
+            self.data=b'';self.page_image=None;self.page.clear();self.status.setText(str(exc));self.save_button.setEnabled(False);self.print_button.setEnabled(False);return
+        offset=self.offset.value();duration=plan['end']-plan['start']
+        self._desired_key=analysis_key(self.recording,offset=offset,duration=duration)
+        cached=cached_analysis(self.recording,offset,duration)
+        self.analysis=cached or dict(status='completed' if self.raw else 'running',mode='normal',source_key=analysis_key(self.recording),
+            scope=dict(offset_seconds=offset,duration_seconds=duration),
+            measurements=empty('Vista bruta.') if self.raw else measure_recording(self.recording,offset,duration),scenarios=[],unavailable=[])
         self.refresh()
-        if autostart and self.analysis['status']!='completed':
-            from .analysis_dialog import AutomaticThread
-            self.thread=AutomaticThread(recording,self)
-            self.thread.result_ready.connect(self.analysis_done)
-            self.thread.finished.connect(self.worker_finished)
-            self.thread.start()
+        if self.thread is not None and self.thread.isRunning():
+            if self._worker_key!=self._desired_key or self.raw:self.thread.requestInterruption()
+            return
+        if self.raw or cached is not None or not self.autostart:return
+        from .analysis_dialog import AutomaticThread
+        self._worker_key=self._desired_key
+        self.thread=AutomaticThread(self.recording,self,offset=offset,duration=duration)
+        self.thread.result_ready.connect(self.analysis_done);self.thread.finished.connect(self.worker_finished);self.thread.start()
 
     def analysis_done(self,result):
+        if self._worker_key!=self._desired_key:return
         if 'measurements' not in result:result['measurements']=self.analysis['measurements']
-        self.analysis=result
-        if result['status']=='completed':
-            self.recording._automatic_analysis=result;self.recording._automatic_analysis_key=analysis_key(self.recording)
+        if 'source_key' not in result:result['source_key']=self.analysis['source_key']
+        self.analysis=result;cache_analysis(self.recording,result)
         if not self.closing:self.refresh()
 
     def worker_finished(self):
         if self.closing:super().reject()
+        elif self._worker_key!=self._desired_key:self.request_analysis()
 
     def reject(self):
         self.closing=True
@@ -169,8 +184,8 @@ class PrintPreview(QDialog):
             self.data = pdf_bytes(self.recording, self.speed, self.gain, self.raw, self.offset.value(), choice, self.analysis)
             self.page_image = render_page(self.data)
             self.span_note.setText(f"{len(plan['rows'])} faixas · até {plan['end']-plan['start']:.1f} s nesta folha · restante {plan['remaining_seconds']:.1f} s. Sem comprimir o tempo ou mudar o ganho.")
-            self.save_button.setEnabled(self.analysis["status"]!="running")
-            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")
+            self.save_button.setEnabled(self.analysis is not None and self.analysis["status"]!="running")
+            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis is not None and self.analysis["status"]!="running")
             self.status.setText("Calculando analise local para a folha; aguarde. Fechar interrompe o processamento." if self.analysis["status"]=="running" else ("" if self.printers.count() else "Nenhuma impressora instalada. Você pode salvar o PDF."))
             self.fit_page()
         except ValueError as exc:
@@ -217,4 +232,4 @@ class PrintPreview(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, "Falha na impressão", str(exc))
         finally:
-            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis["status"]!="running")
+            self.print_button.setEnabled(self.printers.count() > 0 and self.analysis is not None and self.analysis["status"]!="running")

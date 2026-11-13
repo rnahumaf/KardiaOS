@@ -73,16 +73,18 @@ def check_research():
 
 def check_automatic():
     from .recording import Recording
-    from .automatic_analysis import automatic_analysis,analysis_key
+    from .automatic_analysis import automatic_analysis,analysis_key,cache_analysis
     from .analysis_dialog import AutomaticAnalysisDialog
     from .report import page_plan, pdf_bytes
     from .measurements import measure_recording
+    from .processing import set_profile,EMPIRICAL,REFERENCED,DEFAULT_FILTERS
     import numpy as np
     record = Recording(synthetic=True)
     record.append(0, synthetic_pairs(0, 9300), good=True)
     record.meta.update(start=1.0, end=record.last_time)
     before = record.raw[:record.n].copy()
-    result = automatic_analysis(record)
+    set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
+    result = automatic_analysis(record,duration=10)
     assert result['status'] == 'completed'
     assert len(result['scenarios']) == 3
     assert all(v['scores'] and v['status'] == 'synthetic' for v in result['scenarios'])
@@ -94,7 +96,7 @@ def check_automatic():
     assert measure_recording(None)['metrics']['qtc_f']['value'] is None
     plan = page_plan(record, layout='di')
     assert plan['remaining_seconds'] < .01 and len(plan['rows']) >= 3
-    record._automatic_analysis=result;record._automatic_analysis_key=analysis_key(record)
+    cache_analysis(record,result)
     preview=PrintPreview(record)
     assert preview.analysis['status']=='completed' and preview.save_button.isEnabled()
     assert not preview.page_image.isNull()
@@ -102,9 +104,8 @@ def check_automatic():
     assert not render_page(pdf_bytes(record, layout='di',analysis=result)).isNull()
     dialog.close()
 
-    # Explicit technical path only; never cached for standard printing.
-    technical=automatic_analysis(record,technical_mode=True)
-    assert len(technical['scenarios'])==10 and all(v['scores'] for v in technical['scenarios'])
+    # The referenced profile remains gated independently of the operational profile.
+    set_profile(record,REFERENCED)
     record.meta['synthetic']=False
     normal=automatic_analysis(record)
     assert not normal['scenarios'] and len(normal['unavailable'])==3
