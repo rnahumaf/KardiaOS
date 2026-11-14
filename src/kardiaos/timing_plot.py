@@ -1,0 +1,55 @@
+"""Inspectable timing fiducials on the dedicated measurement pipeline."""
+import numpy as np
+from PySide6.QtCore import Qt,QRectF,QPointF
+from PySide6.QtGui import QColor,QPainter,QPen,QPainterPath
+from PySide6.QtWidgets import QWidget
+from .delineation import preprocess,FS
+from .processing import scale_and_signs
+
+class TimingPlot(QWidget):
+    def __init__(self,recording,parent=None):
+        super().__init__(parent);self.recording=recording;self.measurement=None;self.beat=0;self.values=None
+        self.setMinimumSize(400,230)
+    def set_measurement(self,value):
+        self.measurement=value;self.beat=0;self.values=None
+        if value and value.get('fiducials'):
+            a=value['first_sample'];b=value['last_sample_exclusive'];channel=0 if value['lead']=='I' else 1
+            factor,signs=scale_and_signs(self.recording)
+            self.values=preprocess(self.recording.raw[a:b,channel].astype(float))*factor*signs[channel]
+        self.update()
+    def set_beat(self,index):self.beat=max(0,index);self.update()
+    def paintEvent(self,event):
+        p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing);p.fillRect(self.rect(),QColor('#ffffff'))
+        p.setPen(QColor('#21474b'))
+        m=self.measurement
+        if self.values is None or not m or self.beat>=len(m['fiducials']):
+            p.drawText(self.rect(),Qt.AlignmentFlag.AlignCenter,'Sem limites disponíveis neste trecho.');return
+        point=m['fiducials'][self.beat];a=m['first_sample'];r=point['r']-a
+        lo=max(0,r-120);hi=min(len(self.values),r+190);y=self.values[lo:hi]
+        if len(y)<2:return
+        area=QRectF(48,44,max(1,self.width()-70),max(1,self.height()-102))
+        low=float(y.min());high=float(y.max());span=max(high-low,.05);low-=span*.15;high+=span*.15
+        def px(index):return area.left()+(index-lo)/(hi-lo-1)*area.width()
+        def py(value):return area.bottom()-(value-low)/(high-low)*area.height()
+        p.setPen(QPen(QColor('#e5edef'),1))
+        for ms in range(-400,651,100):
+            sample=r+ms*FS/1000
+            if lo<=sample<hi:
+                p.setPen(QPen(QColor('#e5edef'),1))
+                xx=px(sample);p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()))
+                p.setPen(QColor('#526a6e'))
+                p.drawText(QRectF(xx-25,area.bottom()+6,50,20),Qt.AlignmentFlag.AlignCenter,str(ms))
+        p.setPen(QColor('#526a6e'));p.drawText(QRectF(48,8,self.width()-70,26),
+            f"D{m['lead']} · amostra {point['r']} · tempo relativo ao QRS (ms) · amplitude estimada")
+        path=QPainterPath();path.moveTo(px(lo),py(y[0]))
+        for index,value in enumerate(y[1:],lo+1):path.lineTo(px(index),py(value))
+        p.setPen(QPen(QColor('#183e42'),1.7));p.drawPath(path)
+        for metric,on,off,color,name in [('p_duration','pon','poff','#996800','P'),('qrs_duration','qon','qoff','#295eab','QRS'),('qt','ton','toff','#187963','T')]:
+            if m['metrics'][metric]['value'] is None:continue
+            indices=[point[k]-a for k in (on,off) if k in point]
+            p.setPen(QPen(QColor(color),1.5,Qt.PenStyle.DashLine))
+            for value in indices:
+                if lo<=value<hi:p.drawLine(QPointF(px(value),area.top()),QPointF(px(value),area.bottom()))
+            if len(indices)==2:
+                p.setPen(QColor(color));p.drawText(QRectF(px(np.mean(indices))-30,area.top()-23,60,20),Qt.AlignmentFlag.AlignCenter,name)
+        p.setPen(QColor('#526a6e'));p.drawText(QRectF(48,self.height()-30,self.width()-60,22),'Filtro de medição: 0,5–80 Hz, fase zero. Pontos aceitos; não são marcações clínicas revisadas.')

@@ -12,6 +12,6 @@ for directory in ['src/kardiaos','tests','scripts','docs','installer']:
         target=destination/path.relative_to(root)
         target.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(path,target)
-for name in ['pyproject.toml','requirements-lock.txt','requirements-research-lock.txt','run.py','README.md','LICENSE','THIRD_PARTY.md']:
+for name in ['pyproject.toml','requirements-lock.txt','requirements-research-lock.txt','requirements-validation.txt','run.py','README.md','LICENSE','THIRD_PARTY.md']:
     shutil.copyfile(root/name,destination/name)
 print('Source and license files staged; no clinical inputs or model weights.')

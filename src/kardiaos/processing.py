@@ -40,12 +40,13 @@ def profile_info(recording):
     if recording is None:
         return dict(id=REFERENCED, schema=1)
     factor, signs = scale_and_signs(recording)
-    return dict(schema=1, id=profile_id(recording), version=1,
+    return dict(schema=1, id=profile_id(recording), version=2,
                 status='assumed_empirical' if empirical(recording) else 'evidence_gated',
                 amplitude_multiplier=1.5 if empirical(recording) else 1.,
                 base_mv_per_count=float(recording.meta['mv_per_count']), effective_mv_per_count=factor,
                 raw_multipliers=list(signs), filters=recording.config.to_dict(),
-                input_stage='display_filtered' if empirical(recording) else 'raw',
+                input_stage=('review_zero_phase' if recording.meta.get('end') is not None else 'display_filtered') if empirical(recording) else 'raw',
+                review_phase='zero_phase' if recording.meta.get('end') is not None else 'causal_live',
                 calibration_claim=False,
                 method='Common positive empirical gain; no score-based polarity selection; model-specific preprocessing follows.')
 
@@ -76,7 +77,7 @@ def scope(recording, offset=0., duration=None):
         return dict(offset_seconds=float(offset), duration_seconds=0.)
     end = min(recording.last_time, float(recording.meta.get('end') or recording.last_time)) + 1 / 300
     remaining = max(0., end - float(recording.meta['start']) - offset)
-    return dict(offset_seconds=float(offset), duration_seconds=min(remaining, 30. if duration is None else float(duration)))
+    return dict(offset_seconds=float(offset), duration_seconds=min(remaining, remaining if duration is None else float(duration)))
 
 
 def model_values(recording, key, first, last, signs=None):

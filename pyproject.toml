@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kardiaos"
-version = "0.6.0"
+version = "0.8.0"
 description = "Local research workbench for KardiaMobile 6L"
 requires-python = ">=3.11"
 license = "MIT"

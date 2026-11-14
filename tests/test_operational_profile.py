@@ -25,7 +25,7 @@ def test_assumed_profile_never_validates_evidence_and_uses_display_input(tmp_pat
     r=operational();before=r.raw[:r.n].copy();meta=copy.deepcopy(r.meta);calls={}
     def infer(key,x,cancel):calls[key]=x.copy();return fake_infer(key,x,cancel)
     a=automatic_analysis(r,infer=infer,duration=10)
-    assert len(a['scenarios'])==3 and all(v['raw_multipliers'] in [(1,),(1,1)] for v in a['scenarios'])
+    assert len(a['scenarios'])==3 and all(v['raw_multipliers'] in [[1],[1,1]] for v in a['scenarios'])
     assert a['operational_profile']['status']=='assumed_empirical'
     assert r.meta==meta and not r.meta['amplitude_verified']
     assert evidence_state(r)['decoder']=={'I':None,'II':None}
@@ -59,8 +59,7 @@ def test_profile_scopes_quality_and_cache_invalidation():
 
 def test_results_of_other_signal_rejected_and_other_window_not_printed():
     r=operational();a=automatic_analysis(r,infer=fake_infer,duration=10)
-    text=PdfReader(io.BytesIO(pdf_bytes(r,offset=15,analysis=a))).pages[0].extract_text()
-    assert '0.2500' not in text and 'Reavaliar a janela' in text
+    with pytest.raises(ValueError,match='automática'):pdf_bytes(r,offset=15,analysis=a)
     r.raw[1000,0]+=4
     with pytest.raises(ValueError,match='outra captura'):pdf_bytes(r,analysis=a)
 
@@ -81,26 +80,19 @@ def test_preferences_roundtrip_keeps_unrelated_keys(tmp_path):
     assert v.profile_combo.currentData()==EMPIRICAL;v.close()
 
 
-def test_preview_offset_change_cancels_old_job_and_keeps_exact_window(monkeypatch):
-    import time
-    from kardiaos.automatic_analysis import Cancelled
-    app=QApplication.instance() or QApplication([])
-    def delayed(key,x,cancel):
-        for _ in range(5):
-            if cancel():raise Cancelled()
-            time.sleep(.01)
-        return fake_infer(key,x,cancel)
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,delayed,**kw))
-    r=operational();p=PrintPreview(r);p.offset.setValue(10)
-    wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning(),seconds=15)
-    assert p.analysis['scope']['offset_seconds']==10
-    assert all(v['offset_seconds']==10 for v in p.analysis['scenarios'])
-    text=PdfReader(io.BytesIO(p.data)).pages[0].extract_text();assert '10-20 s' in text
+def test_preview_window_is_automatic_and_exact(monkeypatch):
+    app=QApplication.instance()
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
+    r=operational();p=PrintPreview(r)
+    assert not hasattr(p,'offset') and not hasattr(p,'layout_choice')
+    wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning(),seconds=20)
+    window=p.analysis['report_window']
+    assert all(v['first_sample']==window['first_sample'] and v['last_sample_exclusive']==window['last_sample_exclusive'] for v in p.analysis['scenarios'])
     assert p.save_button.isEnabled();p.close()
 
 
 def test_raw_preview_never_attaches_filtered_scores():
-    app=QApplication.instance() or QApplication([]);r=operational();a=automatic_analysis(r,infer=fake_infer,duration=10);cache_analysis(r,a)
+    app=QApplication.instance() or QApplication([]);r=operational();a=automatic_analysis(r,infer=fake_infer);cache_analysis(r,a)
     p=PrintPreview(r,raw=True,autostart=False)
     text=PdfReader(io.BytesIO(p.data)).pages[0].extract_text();assert '0.2500' not in text;p.close()
 
@@ -112,14 +104,11 @@ def test_profile_timing_invariance_and_delineator_boundary_abstention():
         r=signal_record(invert=invert,gain=gain);set_profile(r,EMPIRICAL);r.configure(DEFAULT_FILTERS)
         results.append(measure_recording(r))
     assert results[0]['metrics']['heart_rate']['value']==pytest.approx(60,abs=.5)
-    # A causal baseline filter can merge the QRS tail with the next wave.
-    # Abstention is required for this fixture; the algorithm must not complete it.
-    assert results[0]['metrics']['qrs_duration']['value'] is None
-    assert 'borda/onda adjacente' in results[0]['metrics']['qrs_duration']['reason']
-    known=signal_record();set_profile(known,EMPIRICAL);known.configure(type(DEFAULT_FILTERS)(0,0,0))
-    measured=measure_recording(known)
-    assert measured['metrics']['qrs_duration']['value']==pytest.approx(80,abs=20)
-    assert measured['metrics']['qt']['value']==pytest.approx(400,abs=45)
+    # Timing now uses a fixed zero-phase pipeline from raw, independent of the causal display.
+    assert results[0]['metrics']['qrs_duration']['value']==pytest.approx(80,abs=20)
+    assert results[0]['pipeline']['source']=='raw'
+    assert results[0]['metrics']['qt']['value'] is None
+    assert results[0]['metrics']['qt']['unavailable_scope']=='method_qualification'
     for key in results[0]['metrics']:
         a,b=results[0]['metrics'][key]['value'],results[1]['metrics'][key]['value']
         if a is None:assert b is None
@@ -145,7 +134,7 @@ def test_automatic_selection_stays_inside_printed_di_interval():
     assert all(5<=v['offset_seconds']<=20 for v in a['scenarios'])
     assert not automatic_analysis(r,infer=fake_infer,duration=10)['scenarios']
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    assert '0.2500' in text and 'I+' not in text
+    assert '0.2500' not in text and 'Hipóteses dos modelos' in text and 'I+' not in text
 
 
 def test_main_background_processing_repeats_after_filter_change(monkeypatch,tmp_path):
@@ -170,16 +159,16 @@ def test_six_lead_vertical_origin_changes_without_compressing_scale():
     from reportlab.lib.units import mm
     from pypdf.generic import ContentStream
     r=operational();a=automatic_analysis(r,infer=fake_infer,duration=10)
-    plan=page_plan(r,analysis=a);assert len(plan['rows'])==7
+    plan=page_plan(r,analysis=a);assert len(plan['rows'])==6
     for row in plan['rows']:
         y=row['baseline']+plan['values'][row['first']:row['last'],row['lead']]*10
-        assert np.nanmin(y)>=row['top']-row['h']+1 and np.nanmax(y)<=row['top']-6
+        assert np.nanmin(y)>=row['top']-row['h']+1 and np.nanmax(y)<=row['top']-1
     reader=PdfReader(io.BytesIO(pdf_bytes(r,analysis=a)))
     ops=ContentStream(reader.pages[0].get_contents(),reader).operations
     # Calibration pulse is 1 mV at 10 mm/mV and 200 ms at 25 mm/s.
     pulse=[]
     for i,(args,op) in enumerate(ops):
-        if op==b'm' and len(args)==2 and abs(float(args[0])-11*mm)<1e-3:
+        if op==b'm' and len(args)==2 and abs(float(args[0])-3.5*mm)<1e-3:
             pts=[args]+[v for v,code in ops[i+1:i+6] if code==b'l']
             if len(pts)==6:pulse=pts;break
     assert pulse

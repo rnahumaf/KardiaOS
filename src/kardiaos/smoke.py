@@ -1,112 +1,78 @@
-"""Packaged-runtime smoke check, using only generated synthetic data."""
-import tempfile
+"""Installed-runtime checks. Synthetic-only; isolated settings; no visible window."""
+import tempfile,time
 from pathlib import Path
-import time
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice
-from PySide6.QtPdf import QPdfDocument
+import numpy as np
+from PySide6.QtCore import QSettings
 from PySide6.QtPrintSupport import QPrinter
 from bleak.backends.winrt.client import BleakClientWinRT
-from .app import Window, synthetic_pairs
-from .recording import save_recording, load_recording
-from .preview import PrintPreview, render_page, configure_printer, print_page
+from .app import Window,synthetic_pairs
+from .recording import Recording,save_recording,load_recording
+from .preview import PrintPreview,render_page,configure_printer,print_page
 
 
 def check():
-    w = Window(demo=True)
-    w.tick_timer.stop()
-    w.start()
-    t = time.monotonic() - 3
-    for i in range(0, 900, 9):
-        w.accept_samples(t + i / 300, synthetic_pairs(i, 9))
-    w.stop()
-    assert w.recording.meta['start'] is not None
-    assert w.recording.n == 900
+    from .automatic_analysis import analysis_key
+    from .review_window import trace_window
+    from .measurements import empty
     with tempfile.TemporaryDirectory(prefix='kardiaos-synthetic-') as folder:
-        path = Path(folder) / 'fixture.kardia'
-        save_recording(path, w.recording)
-        result = load_recording(path)
-        assert result.n == 900 and result.meta['synthetic']
-        preview = PrintPreview(result,autostart=False)
-        assert not preview.page_image.isNull()
-        assert preview.page_image.pixelColor(0, 0).lightness() > 200
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printed = Path(folder) / 'printed-synthetic.pdf'
-        printer.setOutputFileName(str(printed))
-        configure_printer(printer)
-        print_page(preview.data, printer)
-        assert not render_page(printed.read_bytes()).isNull()
-        preview.close()
-    buffer = QBuffer()
-    buffer.setData(QByteArray(w.report()))
-    buffer.open(QIODevice.OpenModeFlag.ReadOnly)
-    doc = QPdfDocument()
-    doc.load(buffer)
-    assert doc.pageCount() == 1
-    doc.close()
-    buffer.close()
-    w.dirty = False
-    w.close()
+        w=Window(demo=True,settings=QSettings(str(Path(folder)/'prefs.ini'),QSettings.Format.IniFormat));w.tick_timer.stop();w.start()
+        t=time.monotonic()-12
+        for i in range(0,3600,9):w.accept_samples(t+i/300,synthetic_pairs(i,9))
+        w.stop();assert w.recording.n==3600 and w.recording.meta['start'] is not None
+        path=Path(folder)/'fixture.kardia';save_recording(path,w.recording);r=load_recording(path)
+        assert r.n==3600 and r.meta['synthetic']
+        analysis=dict(status='completed',mode='normal',source_key=analysis_key(r),report_window=trace_window(r),reportable=True,trace_only=True,
+            measurements=empty('Synthetic rendering check'),scenarios=[],hypotheses=[],representative={})
+        preview=PrintPreview(r,analysis=analysis,autostart=False)
+        assert preview.page_image is not None and not preview.page_image.isNull() and preview.ready()
+        assert preview.page_image.pixelColor(0,0).lightness()>200
+        printer=QPrinter(QPrinter.PrinterMode.HighResolution);printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printed=Path(folder)/'printed.pdf';printer.setOutputFileName(str(printed));configure_printer(printer)
+        print_page(preview.data,printer,preview.plan['content_bounds']);assert not render_page(printed.read_bytes()).isNull()
+        preview.close();assert not render_page(w.report()).isNull();w.dirty=False;w.close()
 
 
 def check_research():
-    """Verify installed assets, GUI imports, worker path and all trained heads."""
-    from .recording import Recording
-    from .research import analyze, catalog
+    from .research import analyze,catalog
     from .research_dialog import ResearchDialog
-    import numpy as np
-    record = Recording(synthetic=True)
-    record.append(0, synthetic_pairs(0, 3300), good=True)
-    record.meta.update(start=1.0, end=record.last_time)
-    dialog = ResearchDialog(record)
-    for key, spec in catalog()['models'].items():
-        result = analyze(record, key)
-        assert result['status'] == 'synthetic', result.get('reasons')
-        assert len(result['scores']) == len(spec['labels'])
-        assert np.isfinite([v['score'] for v in result['scores']]).all()
-    record.meta['synthetic'] = False
+    record=Recording(synthetic=True);record.append(0,synthetic_pairs(0,3300),good=True);record.meta.update(start=1.,end=record.last_time)
+    dialog=ResearchDialog(record)
+    for key,spec in catalog()['models'].items():
+        result=analyze(record,key);assert result['status']=='synthetic',result.get('reasons')
+        assert len(result['scores'])==len(spec['labels']) and np.isfinite([v['score'] for v in result['scores']]).all()
+    record.meta['synthetic']=False
     for key in catalog()['models']:
-        result = analyze(record, key)
-        assert result['status'] == 'inconclusive' and result['scores'] == []
+        result=analyze(record,key);assert result['status']=='inconclusive' and result['scores']==[]
     dialog.close()
 
 
 def check_automatic():
-    from .recording import Recording
-    from .automatic_analysis import automatic_analysis,analysis_key,cache_analysis
+    from .automatic_analysis import automatic_analysis,cache_analysis
     from .analysis_dialog import AutomaticAnalysisDialog
-    from .report import page_plan, pdf_bytes
-    from .measurements import measure_recording
+    from .report import page_plan,pdf_bytes
     from .processing import set_profile,EMPIRICAL,REFERENCED,DEFAULT_FILTERS
-    import numpy as np
-    record = Recording(synthetic=True)
-    record.append(0, synthetic_pairs(0, 9300), good=True)
-    record.meta.update(start=1.0, end=record.last_time)
-    before = record.raw[:record.n].copy()
-    set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
-    result = automatic_analysis(record,duration=10)
-    assert result['status'] == 'completed'
-    assert len(result['scenarios']) == 3
-    assert all(v['scores'] and v['status'] == 'synthetic' for v in result['scenarios'])
-    np.testing.assert_array_equal(before, record.raw[:record.n])
-    dialog = AutomaticAnalysisDialog(record, autostart=False)
-    dialog.update_result(dict(kind='measurements', value=result['measurements']))
-    for item in result['scenarios']: dialog.update_result(dict(kind='scenario', value=item))
-    assert dialog.score_table.rowCount() == 15
-    assert measure_recording(None)['metrics']['qtc_f']['value'] is None
-    plan = page_plan(record, layout='di')
-    assert plan['remaining_seconds'] < .01 and len(plan['rows']) >= 3
-    cache_analysis(record,result)
-    preview=PrintPreview(record)
-    assert preview.analysis['status']=='completed' and preview.save_button.isEnabled()
-    assert not preview.page_image.isNull()
-    preview.close()
-    assert not render_page(pdf_bytes(record, layout='di',analysis=result)).isNull()
-    dialog.close()
-
-    # The referenced profile remains gated independently of the operational profile.
-    set_profile(record,REFERENCED)
-    record.meta['synthetic']=False
-    normal=automatic_analysis(record)
-    assert not normal['scenarios'] and len(normal['unavailable'])==3
+    from .qt_client import WEIGHT_SHA256
+    record=Recording(synthetic=True);record.append(0,synthetic_pairs(0,9300),good=True);record.meta.update(start=1.,end=record.last_time)
+    before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
+    result=automatic_analysis(record)
+    assert result['status']=='completed' and len(result['scenarios'])==3
+    assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
+    assert result['qt']['checkpoint_sha256']==WEIGHT_SHA256 and not result['qt']['worker_error'],result['qt'].get('worker_error')
+    assert not result['clinical_validation'] and result['exploratory_policy']['confidence_calibrated'] is False
+    assert result['qtc_label']=='QTc: erro na estimativa' or 'Fridericia; baixa confiança)' in result['qtc_label']
+    np.testing.assert_array_equal(before,record.raw[:record.n]);cache_analysis(record,result)
+    dialog=AutomaticAnalysisDialog(record,autostart=False);dialog.update_result(dict(kind='measurements',value=result['measurements']));dialog.on_result(result)
+    assert dialog.score_table.rowCount()==3 and dialog.score_table.columnCount()==2 and dialog.lead_selector.count()==2
+    assert dialog.criteria_table.rowCount()==4
+    for measured in [result['measurements']]+result['measurements']['additional_leads']:
+        assert measured['pipeline']['source']=='raw' and measured['qualification']['policy']=='0.7.0'
+        if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='exploratory_low_confidence'
+    plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
+    di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
+    preview=PrintPreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()
+    assert not render_page(pdf_bytes(record,layout='di',analysis=result)).isNull();dialog.close()
+    # The optional referenced profile still requires channel-specific evidence.
+    set_profile(record,REFERENCED);record.meta['synthetic']=False
+    normal=automatic_analysis(record);assert not normal['scenarios'] and len(normal['unavailable'])==3
+    assert normal['qtc_label']=='QTc: erro na estimativa'
     assert not render_page(pdf_bytes(record,layout='di',analysis=normal)).isNull()

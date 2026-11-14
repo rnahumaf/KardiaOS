@@ -1,0 +1,963 @@
+{
+  "dataset": "LUDB 1.0.1",
+  "split": {
+    "development_subjects": 40,
+    "held_out_subjects": 160,
+    "seed": 1729
+  },
+  "candidate_sha256": {
+    "delineation.py": "517c2fd1dd660e10aa16077289efaf3d6834f7935c2b4e36638431d1b4cef619",
+    "measurement_engine.py": "98c97925260256ed6164b25ceb55ed54aa4f58b48f830582f8a88710633b7f9c"
+  },
+  "summary": {
+    "i": {
+      "records": 160,
+      "subjects": 160,
+      "candidate_detector": {
+        "sensitivity": 0.9904632152588556,
+        "ppv": 0.9952087611225188,
+        "matched": 1454,
+        "reference": 1468,
+        "detected": 1461,
+        "excluded_edges": 121
+      },
+      "heart_rate": {
+        "n": 149,
+        "bias": 0.0064296064366845575,
+        "mae": 0.2617466863786462,
+        "p90_abs": 0.5938996228031388,
+        "max_abs": 2.474377224199287,
+        "eligible_records": 158,
+        "accepted_records": 149,
+        "coverage": 0.9430379746835443,
+        "all_record_outputs": 151,
+        "outputs_without_eligible_reference": 2,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 0,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": true
+      },
+      "p_duration": {
+        "n": 78,
+        "bias": 5.078205128205116,
+        "mae": 9.314102564102571,
+        "p90_abs": 16.880000000000045,
+        "max_abs": 34.30000000000042,
+        "eligible_records": 139,
+        "accepted_records": 78,
+        "coverage": 0.5611510791366906,
+        "all_record_outputs": 78,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 497,
+            "bias": 4.500335345405771,
+            "mae": 11.08383635144198,
+            "p90_abs": 20.66666666666646,
+            "max_abs": 60.000000000000114
+          },
+          "references": 1110,
+          "outputs": 555,
+          "matched_outputs": 497
+        },
+        "release_target_passed": true
+      },
+      "qrs_duration": {
+        "n": 136,
+        "bias": -6.04926470588239,
+        "mae": 10.037499999999994,
+        "p90_abs": 18.34999999999981,
+        "max_abs": 55.99999999999969,
+        "eligible_records": 160,
+        "accepted_records": 136,
+        "coverage": 0.85,
+        "all_record_outputs": 136,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 1140,
+            "bias": -5.943859649122814,
+            "mae": 11.498245614035088,
+            "p90_abs": 23.400000000000812,
+            "max_abs": 75.99999999999926
+          },
+          "references": 1468,
+          "outputs": 1140,
+          "matched_outputs": 1140
+        },
+        "release_target_passed": true
+      },
+      "qt": {
+        "n": 62,
+        "bias": -14.040322580645242,
+        "mae": 14.92419354838717,
+        "p90_abs": 25.040000000000152,
+        "max_abs": 55.299999999999955,
+        "eligible_records": 160,
+        "accepted_records": 62,
+        "coverage": 0.3875,
+        "all_record_outputs": 62,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 332,
+            "bias": -12.742971887550231,
+            "mae": 15.875502008032159,
+            "p90_abs": 31.266666666666378,
+            "max_abs": 117.33333333333383
+          },
+          "references": 1321,
+          "outputs": 372,
+          "matched_outputs": 332
+        },
+        "release_target_passed": false
+      },
+      "boundaries": {
+        "qon": {
+          "n": 1140,
+          "bias": 7.653801169590659,
+          "mae": 8.844444444444449,
+          "p90_abs": 16.666666666666607,
+          "max_abs": 43.999999999999595
+        },
+        "qoff": {
+          "n": 1140,
+          "bias": 1.7099415204678345,
+          "mae": 7.8514619883040915,
+          "p90_abs": 16.000000000000014,
+          "max_abs": 41.999999999999815
+        },
+        "pon": {
+          "n": 497,
+          "bias": 0.38095238095237594,
+          "mae": 6.945674044265599,
+          "p90_abs": 12.933333333333708,
+          "max_abs": 58.00000000000072
+        },
+        "poff": {
+          "n": 497,
+          "bias": 4.881287726358147,
+          "mae": 6.976525821596219,
+          "p90_abs": 12.666666666666782,
+          "max_abs": 34.6666666666664
+        },
+        "toff": {
+          "n": 332,
+          "bias": -5.156626506024113,
+          "mae": 10.2530120481928,
+          "p90_abs": 19.33333333333298,
+          "max_abs": 121.99999999999989
+        }
+      },
+      "abstentions": {
+        "heart_rate": {
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 7,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2
+        },
+        "p_duration": {
+          "2/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 7,
+          "1/7 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "7/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/10 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "0/12 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 3,
+          "4/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "0/7 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/8 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "0/19 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/17 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "7/8 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/7 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "3/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "2/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 2,
+          "2/6 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 2,
+          "1/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 2,
+          "7/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 2,
+          "3/10 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "3/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 2,
+          "2/8 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "8/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "6/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "3/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/11 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "2/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "8/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "2/13 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "3/14 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/14 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "2/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/15 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "0/8 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "3/7 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "0/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 2,
+          "11/13 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "8/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 3,
+          "2/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/8 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "2/12 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 2,
+          "4/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "5/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "9/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "6/13 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "2/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "5/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1
+        },
+        "qrs_duration": {
+          "3/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 7,
+          "3/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "0/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/14 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "6/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1
+        },
+        "qt": {
+          "3/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "1/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 7,
+          "5/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "0/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 2,
+          "3/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "1/10 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 2,
+          "0/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "2/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "2/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "3/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 5,
+          "0/8 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "4/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 5,
+          "4/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 8,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "9/19 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "8/17 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "1/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "0/7 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "6/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 2,
+          "2/8 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "3/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "12/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "9/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "0/8 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 2,
+          "4/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 4,
+          "5/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/15 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/10 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "0/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "3/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "4/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "3/13 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "6/14 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "7/13 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 3,
+          "4/14 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "9/15 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "9/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/7 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "0/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/8 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "2/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1
+        }
+      }
+    },
+    "ii": {
+      "records": 160,
+      "subjects": 160,
+      "candidate_detector": {
+        "sensitivity": 0.9945578231292517,
+        "ppv": 0.9952348536419333,
+        "matched": 1462,
+        "reference": 1470,
+        "detected": 1469,
+        "excluded_edges": 114
+      },
+      "heart_rate": {
+        "n": 154,
+        "bias": -0.029418885095909845,
+        "mae": 0.23379917154490126,
+        "p90_abs": 0.5410074775386431,
+        "max_abs": 2.5589073634204595,
+        "eligible_records": 159,
+        "accepted_records": 154,
+        "coverage": 0.9685534591194969,
+        "all_record_outputs": 155,
+        "outputs_without_eligible_reference": 1,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 0,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": true
+      },
+      "p_duration": {
+        "n": 88,
+        "bias": 4.515909090909102,
+        "mae": 6.706818181818154,
+        "p90_abs": 15.089999999999868,
+        "max_abs": 26.299999999999557,
+        "eligible_records": 139,
+        "accepted_records": 88,
+        "coverage": 0.6330935251798561,
+        "all_record_outputs": 88,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 609,
+            "bias": 4.098522167487681,
+            "mae": 8.711548987411064,
+            "p90_abs": 18.00000000000019,
+            "max_abs": 58.00000000000061
+          },
+          "references": 1111,
+          "outputs": 674,
+          "matched_outputs": 609
+        },
+        "release_target_passed": true
+      },
+      "qrs_duration": {
+        "n": 139,
+        "bias": -5.407913669064757,
+        "mae": 11.112949640287756,
+        "p90_abs": 19.75999999999993,
+        "max_abs": 88.69999999999992,
+        "eligible_records": 159,
+        "accepted_records": 139,
+        "coverage": 0.8742138364779874,
+        "all_record_outputs": 139,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 1187,
+            "bias": -6.439764111204724,
+            "mae": 12.45155855096885,
+            "p90_abs": 24.666666666666266,
+            "max_abs": 94.66666666666681
+          },
+          "references": 1456,
+          "outputs": 1187,
+          "matched_outputs": 1187
+        },
+        "release_target_passed": true
+      },
+      "qt": {
+        "n": 70,
+        "bias": -13.512857142857063,
+        "mae": 14.0157142857142,
+        "p90_abs": 24.13000000000007,
+        "max_abs": 42.30000000000007,
+        "eligible_records": 159,
+        "accepted_records": 70,
+        "coverage": 0.44025157232704404,
+        "all_record_outputs": 70,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 393,
+            "bias": -12.542832909245138,
+            "mae": 14.683630195080589,
+            "p90_abs": 27.333333333333165,
+            "max_abs": 104.0
+          },
+          "references": 1308,
+          "outputs": 441,
+          "matched_outputs": 393
+        },
+        "release_target_passed": false
+      },
+      "boundaries": {
+        "qon": {
+          "n": 1192,
+          "bias": 7.4507829977628655,
+          "mae": 9.402684563758383,
+          "p90_abs": 16.000000000000014,
+          "max_abs": 59.99999999999961
+        },
+        "qoff": {
+          "n": 1187,
+          "bias": 1.0407188991856267,
+          "mae": 8.557708508845849,
+          "p90_abs": 16.000000000000014,
+          "max_abs": 99.33333333333394
+        },
+        "pon": {
+          "n": 609,
+          "bias": 0.11603721948549654,
+          "mae": 4.190476190476175,
+          "p90_abs": 8.133333333333356,
+          "max_abs": 51.9999999999996
+        },
+        "poff": {
+          "n": 609,
+          "bias": 4.214559386973169,
+          "mae": 6.762999452654642,
+          "p90_abs": 13.333333333333197,
+          "max_abs": 58.00000000000072
+        },
+        "toff": {
+          "n": 393,
+          "bias": -4.140797285835469,
+          "mae": 9.114503816793903,
+          "p90_abs": 16.533333333333296,
+          "max_abs": 84.00000000000051
+        }
+      },
+      "abstentions": {
+        "heart_rate": {
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 5
+        },
+        "p_duration": {
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 6,
+          "2/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 3,
+          "6/7 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "0/12 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 3,
+          "6/7 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/8 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 2,
+          "1/19 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "6/17 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "7/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 2,
+          "6/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/6 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/10 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "8/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 5,
+          "3/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 2,
+          "3/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "3/8 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "0/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "4/8 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "4/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/8 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "6/14 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/11 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 2,
+          "2/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "4/14 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "5/14 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/15 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/6 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "3/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/8 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "2/7 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "1/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "4/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 3,
+          "3/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "1/12 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "3/12 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "1/11 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "5/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/12 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1
+        },
+        "qrs_duration": {
+          "8/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "6/19 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 5,
+          "0/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "5/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "3/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "6/15 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "3/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1
+        },
+        "qt": {
+          "0/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/9 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "2/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 9,
+          "3/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 4,
+          "0/9 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "2/10 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "0/11 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 4,
+          "0/10 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "0/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "3/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 5,
+          "0/19 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "6/17 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "1/7 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/6 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "0/10 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 2,
+          "1/9 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "2/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "QRS candidatos instáveis ou sem repetibilidade/contraste suficiente para medir.": 5,
+          "0/9 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 2,
+          "0/12 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "11/14 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/8 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "1/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 4,
+          "0/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "4/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "4/9 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 4,
+          "3/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "5/11 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 5,
+          "0/13 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "2/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "6/14 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/12 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "4/11 batimentos delimitados. Duração ou posição da onda variável entre batimentos.": 1,
+          "1/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "7/14 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "5/14 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "5/13 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "1/15 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 2,
+          "2/6 batimentos delimitados. Onda bifásica ou sobreposta; limites ambíguos.": 1,
+          "0/8 batimentos delimitados. Onda ausente ou sem contraste suficiente.": 1,
+          "0/8 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "2/10 batimentos delimitados. Limites sensíveis ao limiar de delineação.": 1,
+          "0/11 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1,
+          "3/13 batimentos delimitados. Limite não separado da borda ou da onda adjacente.": 1
+        }
+      }
+    }
+  },
+  "baseline_060_empirical": {
+    "i": {
+      "records": 160,
+      "subjects": 160,
+      "candidate_detector": {
+        "sensitivity": 0.9904632152588556,
+        "ppv": 0.9952087611225188,
+        "matched": 1454,
+        "reference": 1468,
+        "detected": 1461,
+        "excluded_edges": 121
+      },
+      "heart_rate": {
+        "n": 148,
+        "bias": 0.0834619029834585,
+        "mae": 0.3714952105257204,
+        "p90_abs": 0.8245139804343394,
+        "max_abs": 6.930136986301356,
+        "eligible_records": 158,
+        "accepted_records": 148,
+        "coverage": 0.9367088607594937,
+        "all_record_outputs": 150,
+        "outputs_without_eligible_reference": 2,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 0,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": true
+      },
+      "p_duration": {
+        "n": 18,
+        "bias": -18.244444444444433,
+        "mae": 22.53333333333333,
+        "p90_abs": 38.67999999999994,
+        "max_abs": 43.699999999999775,
+        "eligible_records": 139,
+        "accepted_records": 18,
+        "coverage": 0.12949640287769784,
+        "all_record_outputs": 18,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1110,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "qrs_duration": {
+        "n": 59,
+        "bias": -26.535593220339017,
+        "mae": 26.762711864406814,
+        "p90_abs": 38.060000000000066,
+        "max_abs": 89.29999999999968,
+        "eligible_records": 160,
+        "accepted_records": 59,
+        "coverage": 0.36875,
+        "all_record_outputs": 59,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1468,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "qt": {
+        "n": 44,
+        "bias": -46.78863636363635,
+        "mae": 46.78863636363635,
+        "p90_abs": 60.49000000000003,
+        "max_abs": 71.30000000000001,
+        "eligible_records": 160,
+        "accepted_records": 44,
+        "coverage": 0.275,
+        "all_record_outputs": 44,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1321,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "boundaries": {
+        "qon": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "qoff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "pon": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "poff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "toff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        }
+      },
+      "abstentions": {
+        "heart_rate": {
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 7,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 1
+        },
+        "p_duration": {
+          "Onda sem separação suficiente do ruído.": 39,
+          "Limite de onda não separado da borda/onda adjacente.": 26,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 20,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 7,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 29,
+          "Limites instáveis ao variar o limiar de delineação.": 18,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 1
+        },
+        "qrs_duration": {
+          "Limite de onda não separado da borda/onda adjacente.": 24,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 20,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 7,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 29,
+          "Limites instáveis ao variar o limiar de delineação.": 18,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 1
+        },
+        "qt": {
+          "Limite de onda não separado da borda/onda adjacente.": 33,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 20,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 7,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 29,
+          "Limites instáveis ao variar o limiar de delineação.": 18,
+          "Onda sem separação suficiente do ruído.": 6,
+          "Energia de alta frequência excessiva; ruído/artefato.": 2,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 1
+        }
+      }
+    },
+    "ii": {
+      "records": 160,
+      "subjects": 160,
+      "candidate_detector": {
+        "sensitivity": 0.9945578231292517,
+        "ppv": 0.9952348536419333,
+        "matched": 1462,
+        "reference": 1470,
+        "detected": 1469,
+        "excluded_edges": 114
+      },
+      "heart_rate": {
+        "n": 152,
+        "bias": 0.0646258420945864,
+        "mae": 0.3664166472744002,
+        "p90_abs": 0.7443722835321811,
+        "max_abs": 6.930136986301356,
+        "eligible_records": 159,
+        "accepted_records": 152,
+        "coverage": 0.9559748427672956,
+        "all_record_outputs": 153,
+        "outputs_without_eligible_reference": 1,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 0,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": true
+      },
+      "p_duration": {
+        "n": 15,
+        "bias": -30.08000000000005,
+        "mae": 30.08000000000005,
+        "p90_abs": 50.09999999999956,
+        "max_abs": 54.70000000000033,
+        "eligible_records": 139,
+        "accepted_records": 15,
+        "coverage": 0.1079136690647482,
+        "all_record_outputs": 15,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1111,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "qrs_duration": {
+        "n": 63,
+        "bias": -28.65714285714283,
+        "mae": 34.3396825396825,
+        "p90_abs": 61.04000000000014,
+        "max_abs": 103.00000000000003,
+        "eligible_records": 159,
+        "accepted_records": 63,
+        "coverage": 0.39622641509433965,
+        "all_record_outputs": 64,
+        "outputs_without_eligible_reference": 1,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1456,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "qt": {
+        "n": 32,
+        "bias": -47.312499999999964,
+        "mae": 47.312499999999964,
+        "p90_abs": 57.09999999999984,
+        "max_abs": 70.6999999999997,
+        "eligible_records": 159,
+        "accepted_records": 32,
+        "coverage": 0.20125786163522014,
+        "all_record_outputs": 32,
+        "outputs_without_eligible_reference": 0,
+        "beats": {
+          "errors": {
+            "n": 0,
+            "bias": null,
+            "mae": null,
+            "p90_abs": null,
+            "max_abs": null
+          },
+          "references": 1308,
+          "outputs": 0,
+          "matched_outputs": 0
+        },
+        "release_target_passed": false
+      },
+      "boundaries": {
+        "qon": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "qoff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "pon": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "poff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        },
+        "toff": {
+          "n": 0,
+          "bias": null,
+          "mae": null,
+          "p90_abs": null,
+          "max_abs": null
+        }
+      },
+      "abstentions": {
+        "heart_rate": {
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 2,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 5
+        },
+        "p_duration": {
+          "Onda sem separação suficiente do ruído.": 48,
+          "Limite de onda não separado da borda/onda adjacente.": 22,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 19,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 36,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 2,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 5,
+          "Limites instáveis ao variar o limiar de delineação.": 13
+        },
+        "qrs_duration": {
+          "Limite de onda não separado da borda/onda adjacente.": 21,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 19,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 36,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 2,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 5,
+          "Limites instáveis ao variar o limiar de delineação.": 13
+        },
+        "qt": {
+          "Limite de onda não separado da borda/onda adjacente.": 24,
+          "Onda sem separação suficiente do ruído.": 29,
+          "Morfologia/RR variável; template não sustenta delineação estável.": 19,
+          "Duração fora ou próxima dos limites deste delineador experimental.": 36,
+          "QRS candidatos sem repetibilidade/separação do ruído suficiente.": 2,
+          "Poucos QRS candidatos ou detecção instável; não há base suficiente para medir.": 5,
+          "Limites instáveis ao variar o limiar de delineação.": 13
+        }
+      }
+    }
+  },
+  "release_policy": {
+    "qualified": [
+      "heart_rate",
+      "p_duration",
+      "qrs_duration"
+    ],
+    "withheld": [
+      "qt",
+      "qtc_f"
+    ]
+  },
+  "clinical_validation": false,
+  "personal_data_included": false
+}

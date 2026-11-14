@@ -25,8 +25,8 @@ def test_di_rows_preserve_each_sample_once_and_physical_scales(speed,gain):
     assert len(pdf.pages)==1 and not list(pdf.pages[0].images)
     assert float(pdf.pages[0].mediabox.width)==pytest.approx(297*mm)
     assert float(pdf.pages[0].mediabox.height)==pytest.approx(210*mm)
-    assert '200 ms' in pdf.pages[0].extract_text()
-    if speed==25:assert plan['remaining_seconds']==pytest.approx(0)
+    assert 'A4 a 100%' in pdf.pages[0].extract_text()
+    if speed==25:assert plan['remaining_seconds']==pytest.approx(20)
 
 
 def test_no_silent_vertical_cut_or_time_compression():
@@ -42,9 +42,9 @@ def test_di_explicit_layout_works_with_six_lead_capture_and_preserves_gaps():
     r=signal_record();r.quality[900:960]=False;r.times[5000:r.n]+=.2;r.meta['end']=r.last_time
     plan=page_plan(r,layout='di')
     assert all(v['lead']==0 for v in plan['rows'])
-    assert np.isnan(plan['values'][900:960,0]).all()
+    assert np.isfinite(plan['values'][900:960,0]).all()  # Trace-only fallback retains observed samples.
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di'))).pages[0].extract_text()
-    assert 'D2' not in text and 'Lacunas preservadas' in text
+    assert 'D2' not in text and 'Somente traçado' in text
 
 
 @pytest.mark.parametrize('speed',[25,50])

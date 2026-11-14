@@ -77,18 +77,10 @@ class Recording:
 
     def lead_values(self, first=0, last=None, raw=False):
         """Never derive voltages from a channel flagged as unavailable."""
-        last = self.n if last is None else min(last, self.n)
-        source = self.raw[first:last] if raw else self.filtered[first:last]
-        factor, signs = scale_and_signs(self)
-        source=source.astype(float)*np.array(signs)
-        modes = self.lead_modes[first:last]
-        available = channel_available(self.raw[first:last])
-        result = np.full((last - first, 6), np.nan)
-        one = (modes > 0) & available[:, 0] & self.quality[first:last]
-        six = (modes == 6) & available.all(axis=1) & self.quality[first:last]
-        result[one, 0] = source[one, 0]
-        result[six] = six_leads(source[six])
-        return result * factor
+        from .review_signal import waveform_values
+        last = self.n if last is None else min(last,self.n)
+        return waveform_values(self,first,last,raw=raw)
+
 
 
 def save_recording(path, recording):

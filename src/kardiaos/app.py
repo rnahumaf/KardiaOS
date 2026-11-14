@@ -71,13 +71,14 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.6.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.8.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
         self.settings = settings if settings is not None else QSettings("KardiaOS", "KardiaOS")
         self._preferences_ready=False
         self._analysis_thread=None;self._analysis_pending=False;self._closing_analysis=False
+        self._preview_seen=set();self._preview_pending=None;self._auto_preview=None
         self._analysis_timer=QTimer(self);self._analysis_timer.setSingleShot(True);self._analysis_timer.setInterval(400);self._analysis_timer.timeout.connect(self.start_background_analysis)
         self.recording = None
         self.stream = None
@@ -152,7 +153,8 @@ class Window(QMainWindow):
         chart_top.addWidget(self.scale_label)
         chart_column.addLayout(chart_top)
         self.paper = ECGPaper()
-        chart_column.addWidget(self.paper, 1)
+        self.paper_scroll=QScrollArea();self.paper_scroll.setWidgetResizable(True);self.paper_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.paper_scroll.setWidget(self.paper);chart_column.addWidget(self.paper_scroll,1)
         self.paper_note = label("* Amplitude estimada. Grade calculada pelas dimensões físicas do monitor.", "muted", True)
         chart_column.addWidget(self.paper_note)
         self.analysis_summary=label("", "muted", True);self.analysis_summary.hide();chart_column.addWidget(self.analysis_summary)
@@ -615,6 +617,7 @@ class Window(QMainWindow):
     def schedule_analysis(self):
         if self.live or self.demo or not self.autorun.isChecked():return
         if self.recording is None or self.recording.meta.get('start') is None:return
+        self.paper.analysis=None;self.paper.update();self._preview_pending=None
         self.analysis_summary.setText('Preparando análise local.');self.analysis_summary.show();self._analysis_timer.start()
 
     def start_background_analysis(self):
@@ -633,14 +636,47 @@ class Window(QMainWindow):
     def background_result(self,record,result):
         if self.recording is not record:return
         if cache_analysis(record,result):
-            count=sum(bool(v.get('scores')) for v in result.get('scenarios',[]))
-            self.analysis_summary.setText(f'{count} modelos concluídos · ECG com resultados em Exportar PDF / Imprimir.')
+            self.paper.analysis=result;self.paper.update()
+            lines=[]
+            if not result.get('trace_only') and result.get('reportable'):
+                from .report import measurement_line
+                lines=[result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
+                if result.get('hypotheses'):lines.append('Hipóteses dos modelos')
+                lines.extend(item['label']+' · '+item['model'] for item in result.get('hypotheses',[])[:3])
+            self.analysis_summary.setText('\n'.join(lines) or result.get('reason') or 'Somente traçado; qualidade insuficiente para análise.')
+            self.analysis_summary.show();self._preview_pending=(record,result,self)
+            self.latency.setText('Revisão: filtros de fase zero.\nAo vivo: filtros causais e buffer de 60 ms.')
+            if self._analysis_thread is None or not self._analysis_thread.isRunning():QTimer.singleShot(0,self.open_pending_preview)
         elif result.get('status')=='cancelled':self.analysis_summary.setText('Análise interrompida.')
         else:self.analysis_summary.setText(result.get('reason','Processamento alterado; reavaliando o registro.'))
 
     def background_finished(self):
         if self._closing_analysis:self.close()
         elif self._analysis_pending:self._analysis_timer.start()
+        else:QTimer.singleShot(0,self.open_pending_preview)
+
+    def auto_preview_result(self,record,result,preview_parent=None):
+        self.background_result(record,result)
+        if self._preview_pending is not None:self._preview_pending=(record,result,preview_parent or self)
+
+    def open_pending_preview(self):
+        pending=self._preview_pending;self._preview_pending=None
+        if pending is None or self.live or self._closing_analysis or self._analysis_pending:return
+        record,result,preview_parent=pending
+        if self.recording is not record or result.get('source_key')!=analysis_key(record) or not result.get('reportable') or result.get('status')!='completed':return
+        token=(result['source_key'],result.get('run_id'))
+        if token in self._preview_seen:return
+        if self._auto_preview is not None and self._auto_preview.isVisible():
+            self._preview_pending=pending;return
+        from .preview import PrintPreview
+        preview=PrintPreview(record,self.speed.currentData(),self.gain.currentData(),self.raw_check.isChecked(),preview_parent,analysis=result)
+        self._preview_seen.add(token);self._auto_preview=preview
+        preview.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        preview.finished.connect(self.auto_preview_closed)
+        preview.show()
+
+    def auto_preview_closed(self,*_):
+        self._auto_preview=None;QTimer.singleShot(0,self.open_pending_preview)
 
     def open_research(self):
         if self.live:

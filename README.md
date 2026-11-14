@@ -29,15 +29,13 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
   conferir e corrigir separadamente os eixos com régua.
 - O PDF usa dimensões físicas A4 (297 × 210 mm), grade de 1/5 mm, velocidade
   de 25 ou 50 mm/s e ganho de 5, 10 ou 20 mm/mV. Imprima a 100%, sem ajustar à página.
-  **Imprimir** e **Exportar PDF** abrem a prévia de uma única folha, com início
-  do trecho selecionável. A 25 mm/s, a parte superior mostra as seis derivações:
-  D1/D2/D3 à esquerda e aVF/aVL/aVR à direita, com até 4,72 segundos por faixa. D2 contínua mostra até 10 segundos
-  abaixo. A 50 mm/s, as durações caem pela metade, sem comprimir o eixo temporal.
-  Com apenas D1 disponível no início selecionado, a folha contém somente D1.
-  A prévia usa fundo opaco claro e seletor próprio de impressora, sem abrir o diálogo
-  do Windows que não recebe a prévia deste fluxo Qt. **Imprimir 1 folha** envia a
-  mesma página em uma cópia, sem frente e verso. A gravação bruta completa não é
-  reduzida ao trecho impresso.
+  **Imprimir** e **Exportar PDF** mostram uma janela automática comum de 10 s.
+  Seis derivações usam seis linhas sincronizadas; DI isolada usa linhas sucessivas.
+  Uma onda padrão sustentada aparece em quadrado separado, na mesma escala.
+  A prévia abre automaticamente após a análise. Menos de 10 s não gera laudo;
+  sem qualidade suficiente, há somente traçado. Geometria incompatível com as
+  margens ou amplitude bloqueia a saída, sem compressão. A gravação completa
+  continua disponível na tela e no arquivo bruto.
 - **A amplitude não foi calibrada.** O perfil padrão usa `1,5 × fator base` em
   mV estimados, sem inversão. É uma convenção operacional de pesquisa; não promove
   evidência de amplitude ou polaridade. O perfil Referência por canal continua
@@ -54,9 +52,11 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
   retirada e retorno do eletrodo ainda requer conferência em nova captura.
 - O bruto significa valores digitais recebidos do aparelho, não acesso ao ADC
   antes de qualquer processamento interno do fabricante.
-- Os filtros são causais. Há um buffer visual nominal de 60 ms; o atraso do filtro
-  depende da frequência e é estimado a 10 Hz na tela. Latência BLE, hardware e total
-  não foram medidas por uma referência externa.
+- Ao vivo, filtros causais e buffer visual nominal de 60 ms. Na revisão concluída,
+  tela/laudo/classificadores do perfil empírico usam filtros de fase zero por
+  segmento contínuo, preservando as frequências escolhidas. Isso muda a resposta
+  em magnitude em relação ao filtro causal. Latência BLE/hardware e escala
+  elétrica não foram aferidas por referência externa.
 - Os filtros de base e suavização podem alterar ST, amplitudes e morfologia.
   Não há substituição de batimentos, correção de arritmias ou diagnóstico.
 - A heurística de contato identifica saturação, sinal constante e saltos intensos.
@@ -65,8 +65,8 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
 - Lacunas de transporte são inferidas por intervalos de chegada acima de 120 ms;
   o formato observado não fornece contador de sequência. Perdas menores podem não
   ser detectadas. Trechos de contato ruim são marcados, não interpolados.
-- A grade tem ganho fixo. Valores fora da faixa vertical são recortados na exibição;
-  reduza o ganho para inspecioná-los. O bruto continua íntegro.
+- A grade tem ganho fixo. A revisão permite rolagem vertical para acomodar as
+  derivações e amplitudes, sem reduzir o ganho. O bruto continua íntegro.
 
 ## Dados locais
 
@@ -81,60 +81,25 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.6.0)
+## Análise automática local (0.8.0 exploratória)
 
-Após abrir ou concluir uma captura, **Análise automática** calcula as medições
-experimentais de DI e avalia os modelos compatíveis no primeiro trecho contínuo
-de 10 segundos que passa nas verificações técnicas. Não se escolhe a janela
-pelo maior score. A interface separa informação do arquivo, medições e hipóteses
-das redes. É possível interromper, reavaliar e exportar o resultado localmente.
+A janela comum de 10 s é escolhida pela qualidade observada dos canais I/II,
+sem consultar escores ou o valor QTc. Os classificadores reais são executados
+nessa janela, com resultados ligados às suas amostras exatas. Uma lista única
+mostra até três hipóteses e o modelo, sem números de score. Duplicatas equivalentes
+mantêm o maior score bruto; isso não é consenso nem probabilidade calibrada.
 
-As medições incluem FC por RR mediano, duração de P, QRS, QT e QTc Fridericia,
-quando o sinal sustenta a delimitação. Campos indisponíveis mostram o motivo.
-São estimativas de uma heurística conservadora de template mediano com limites
-relativos, sem validação clínica. A base temporal é 300 Hz nominal; não houve
-verificação independente do relógio do aparelho. Não se deduz mV ou orientação
-a partir de durações ou scores.
+FC/P/QRS mantêm o motor temporal 0.7.0. QTc exploratório combina limites da rede
+própria treinada e template da morfologia predominante, com abstenção por qualidade
+e discordância. A fórmula é Fridericia, sempre identificada. A saída numérica traz
+derivação e `baixa confiança`; sem estimativa, `QTc: erro na estimativa`.
+No papel não se imprime QT bruto. Não há edição manual de marcos.
 
-ECGFounder usa I (150 rótulos); DeepPSP tem checkpoints I–II e 6L (21 rótulos).
-Posição física declarada, convenção do decoder, amplitude e pressupostos do
-perfil são estados separados. O perfil padrão permite inferência de pesquisa
-com sinal preservado e escala estimada. A referência por canal mantém suas
-exigências de evidência. Os cinco maiores scores aparecem na tela, três por
-modelo na folha. Não há comparação de inversões na interface normal nem na
-impressão, escolha pelo maior score ou derivações precordiais.
-
-Scores sigmoid não são probabilidades, laudos ou diagnósticos. Não há validação
-clínica no KardiaMobile. Q anormal não determina área inativa/infarto, e rótulos
-temporais não demonstram evolução entre exames. As observações de orientação
-de uma captura não são promovidas a calibração universal.
-
-O botão **Referência** registra posição física, convenção do decoder por canal
-ou amplitude separadamente, com escopo desta captura e proveniência. A revisão
-da referência é declarada pelo usuário, não comprovada eletricamente pelo app.
-Flags antigas são preservadas, sem virar validação nova. Detalhes em
-[evidências independentes](docs/orientation-evidence.md).
-
-Na prévia de impressão, **DI em linhas** distribui o trecho em linhas sucessivas
-numa folha A4. Velocidade, ganho, pulso de 1 mV/200 ms, intervalos de cada linha
-e tempo restante ficam explícitos. A 25 mm/s, uma captura usual de 30 s cabe em
-três linhas, com um painel de medições e hipóteses na mesma folha; altura/amplitude, ganho e 50 mm/s podem limitar o trecho que cabe.
-Nesse caso a prévia informa o restante. Não há compressão silenciosa nem
-recorte vertical: reduza o ganho quando o traçado não couber. Lacunas permanecem
-lacunas. O painel inclui FC, P, QRS, QT, QTcF e os três maiores scores de cada hipótese, com janelas explícitas e motivos de indisponibilidade. A análise começa em segundo plano ao concluir/abrir a captura e na prévia. Apenas resultados do mesmo sinal, perfil e intervalo compatível com a folha são reutilizados; mudar a janela recalcula o necessário. Nomes longos podem ser abreviados no papel; a análise contém os rótulos completos. O layout automático de seis derivações continua disponível.
-
-Os checkpoints e o ambiente de pesquisa são opcionais, separados do instalador.
-Com Python 3.11, no código-fonte distribuído:
-
-```powershell
-python scripts/setup_research.py --target "C:\Users\SEU_USUARIO\AppData\Local\Programs\KardiaOS"
-```
-
-Somente esse setup explícito baixa dependências e pesos das fontes fixadas e
-confere SHA-256. O aplicativo não baixa modelos nem transmite ECGs na análise.
-O instalador recusa atualização se encontrar o KardiaOS em execução; salve e
-feche sua sessão manualmente antes de atualizar. Dados e preferências não são
-removidos. [Métodos de medição](docs/automatic-analysis.md) e [perfil de pesquisa 0.6.0](docs/research-profile.md).
+A qualificação clínica de QT continua reprovada: a política exploratória é
+separada e não declara aprovação do gate 0.7.0. mV e polaridade do decoder não
+recebem validação automática. Não se produzem medidas para completar a página.
+[Métodos, limiares, evidência, filtros e limites](docs/exploratory-080.md).
+[Validação histórica do motor temporal](docs/measurement-validation.md).
 
 ## Desenvolvimento
 

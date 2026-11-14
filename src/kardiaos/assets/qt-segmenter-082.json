@@ -1,0 +1,16 @@
+{
+  "name": "KardiaOS CompactSegmenter082",
+  "version": "082",
+  "sha256": "41f0b6474a9769f59ba0be099412c665b49be0ab99f9d171b5de3704c7b73cd8",
+  "parameters": 81756,
+  "license": "MIT, original implementation",
+  "training_data": "LUDB1.0.1; Open Data Commons Attribution",
+  "train_people": 100,
+  "validation_people": 20,
+  "calibration_people": 80,
+  "trained_from_scratch": true,
+  "confidence_calibration_passed": false,
+  "clinical_validation": false,
+  "input": "one lead,10s,300Hz;0.5\u201340Hz zero-phase; no sign inversion",
+  "qualification": "exploratory use only; local user-selected policy, not the0.7 release gate"
+}

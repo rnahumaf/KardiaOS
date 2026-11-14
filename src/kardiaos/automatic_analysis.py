@@ -67,7 +67,7 @@ def first_window(recording,key,cancelled=lambda:False, *, offset=0., duration=No
     return None,last_reason
 
 
-def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False, offset=0., duration=None):
+def _legacy_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False, offset=0., duration=None):
     request=scope(recording,offset,duration)
     source_key=analysis_key(recording) if recording is not None else None
     result=dict(status='running',mode='technical' if technical_mode else 'normal',evidence=evidence_state(recording),
@@ -123,7 +123,7 @@ def analysis_key(recording,technical_mode=False, *, offset=0.,duration=None):
     """Signal, contact, evidence, active processing, trained heads and requested scope."""
     import hashlib
     metadata=dict(meta=recording.meta,profile=profile_info(recording),scope=scope(recording,offset,duration),
-                  mode=technical_mode,catalog=catalog(),version='0.6.0')
+                  mode=technical_mode,catalog=catalog(),version='0.8.0-template083-own082-review2')
     digest=hashlib.sha256(json.dumps(metadata,sort_keys=True).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())
@@ -148,3 +148,10 @@ def cached_analysis(recording,offset=0.,duration=None):
         result=getattr(recording,'_automatic_analysis',None)
         if result and result.get('mode')=='normal' and result.get('status')=='completed':return result
     return getattr(recording,'_analysis_cache',{}).get(key)
+
+
+def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False,offset=0.,duration=None,qt_infer=None):
+    if technical_mode:
+        return _legacy_analysis(recording,emit,cancelled,infer,technical_mode=True,offset=offset,duration=duration)
+    from .review_analysis import analyze_review
+    return analyze_review(recording,emit,cancelled,infer,qt_infer,offset,duration)

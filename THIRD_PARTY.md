@@ -46,3 +46,20 @@ obtidos separadamente pelo setup explícito. PyTorch e as dependências do ambie
 de pesquisa conservam seus avisos nos pacotes instalados. Versões utilizadas:
 `requirements-research-lock.txt`. O uso destes modelos não implica certificação
 ou endosso de KardiaOS pelos autores, AliveCor ou PhysioNet.
+
+
+## Segmentador QT próprio incluído em 0.8.0
+
+CompactSegmenter082 é implementação original MIT do projeto, com 81.756
+parâmetros e checkpoint treinado do zero. Licença e atribuição acompanham
+`src/kardiaos/assets/qt-segmenter-LICENSE.txt`; proveniência e hash em
+`qt-segmenter-082.json`. Os pesos desse modelo próprio são incluídos no pacote.
+O processo local de inferência usa o ambiente PyTorch de pesquisa existente.
+
+Treino: Kalyakulina et al. (2021), Lobachevsky University Electrocardiography
+Database v1.0.1, PhysioNet, DOI 10.13026/eegm-h675,
+https://physionet.org/content/ludb/1.0.1/ . Base sob Open Data Commons Attribution
+License v1.0; sua atribuição é preservada. A base de sinais não é redistribuída
+no app. Não há dados pessoais do usuário no treinamento ou nos pesos.
+Nenhum código ou checkpoint BixECG foi incorporado. A calibração de confiança
+do segmentador próprio falhou; seu uso é exclusivamente exploratório.

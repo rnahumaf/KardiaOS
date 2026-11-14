@@ -23,9 +23,10 @@ def signal_record(seconds=31, rr=1., p=True, t=True, noise=0, invert=False, gain
 def test_known_synthetic_timing_and_sign_invariance():
     a=measure_recording(signal_record());b=measure_recording(signal_record(invert=True,gain=.5))
     assert a['metrics']['heart_rate']['value']==pytest.approx(60,abs=.5)
-    for key,truth,tolerance in [('p_duration',100,25),('qrs_duration',80,20),('qt',400,45),('qtc_f',400,45)]:
+    for key,truth,tolerance in [('p_duration',100,25),('qrs_duration',80,20)]:
         assert a['metrics'][key]['value']==pytest.approx(truth,abs=tolerance),a
         assert b['metrics'][key]['value']==pytest.approx(a['metrics'][key]['value'],abs=5)
+    assert a['metrics']['qt']['value'] is None and a['metrics']['qtc_f']['value'] is None
     assert a['metrics']['qtc_f']['formula']=='QTcF = QT(ms) / RR(s)^(1/3)'
 
 

@@ -1,4 +1,8 @@
-# Perfil operacional de pesquisa — 0.6.0
+> Atualização 0.8.0: [fluxo exploratório, templates e fases](exploratory-080.md).
+> As descrições 0.6/0.7 abaixo registram o método anterior; seus resultados de
+> qualificação permanecem históricos e não são convertidos em validação clínica.
+
+# Perfil operacional de pesquisa — 0.7.0 (perfil v1 preservado)
 
 ## Escolha operacional e evidência
 
@@ -35,13 +39,11 @@ físicos dos canais. Não se declara reprodução exata de Omron/AliveCor.
    desligado para manter o pipeline padrão reprodutível.
 3. Aplicação da escala estimada e derivação de III=II−I, aVR=−(I+II)/2,
    aVL=I−II/2 e aVF=II−I/2, somente quando os dois canais estão disponíveis.
-4. Exibição e impressão usam esse mesmo sinal. As medidas de morfologia usam
-   DI desse sinal; a detecção de complexos utiliza uma banda auxiliar de 5–25 Hz.
-   Essa banda auxiliar não é o filtro do traçado exibido ou uma recomendação de
-   banda diagnóstica. Os filtros causais podem deslocar/distorcer limites de onda,
-   ST e amplitudes; uma cauda do QRS que se mistura com a onda seguinte pode
-   impedir a delimitação mesmo em sinal sintético limpo. Nesse caso os intervalos
-   permanecem indisponíveis. O relógio e a latência física não foram calibrados.
+4. Exibição e impressão usam esse mesmo sinal. Desde 0.7.0, as medições
+   temporais partem separadamente do bruto, com filtro de fase zero 0,5–80 Hz,
+   para evitar o atraso do filtro causal visual. Não é uma banda diagnóstica
+   nem uma reprodução do processamento proprietário. A aba Limites identifica
+   o filtro próprio e os pontos usados. Veja [validação](measurement-validation.md).
 5. Os modelos recebem a janela desse mesmo sinal processado, seguida de seus
    contratos fixados em [research-models.md](research-models.md). A filtragem
    adicional do perfil é uma adaptação experimental, fora da validação dos autores.
@@ -60,18 +62,15 @@ somente o intervalo que realmente cabe na folha. Cada modelo recebe o primeiro
 trecho tecnicamente elegível de 10 s dentro desse intervalo, procurando em passos
 de 300 amostras. Não há busca por score. Se a folha contiver menos de 10 s, ou
 nenhum trecho contínuo elegível, o modelo fica indisponível. As medidas usam o
-maior trecho contínuo de DI no intervalo, até 30 s, com início e duração próprios.
+maior trecho contínuo de cada canal no intervalo, até 30 s, com início e duração próprios.
 O painel identifica essas janelas; não atribui todos os scores a cada batimento.
 Nas seis derivações, as faixas superiores são curtas e DII contínua delimita os
 até 10 s da análise mostrada. Nenhum resultado de outro registro é anexado.
 
-FC, P, QRS, QT e QTcF são medidas experimentais de DI, não intervalos globais de
-12 derivações. Há abstinência por ausência/ruído, contato, lacunas, poucos
-complexos, RR variável, baixa repetibilidade, limites de onda instáveis ou próximos
-das bordas técnicas do delineador. A resolução nominal de 3,33 ms não representa
-acurácia. QTcF usa Fridericia, `QT(ms)/RR(s)^(1/3)`, somente com QT delimitado,
-RR estável de 0,6–1,5 s e QRS <120 ms. Não há números substitutos para campos
-indisponíveis. Os critérios completos estão em [automatic-analysis.md](automatic-analysis.md).
+FC, P e QRS são medições experimentais independentes de DI/DII. QT e QTcF
+ficam indisponíveis pela falha de cobertura do método na validação reservada.
+O relógio físico e a escala continuam sem referência elétrica comprovada.
+Os [critérios e erros](measurement-validation.md) explicam as limitações.
 
 ECGFounder 1L e DeepPSP 2L/6L continuam usando cabeças treinadas, rótulos originais
 e SHA-256 fixados. Os scores sigmoid são saídas não calibradas; não são
@@ -112,5 +111,5 @@ Testes sintéticos verificam continuidade, abstinência, escala de PDF, vínculo
 de janela e regressões de interface. Inferência local com pesos reais verifica
 execução e rastreabilidade, não acurácia diagnóstica. Continuam pendentes referência
 elétrica pareada, polaridade física do decoder por canal, validação do relógio,
-benchmark de delineação, generalização dos modelos e impressão física com régua.
+validação temporal no aparelho, generalização dos modelos e impressão física com régua.
 Resultados pessoais usados em QA permanecem fora do repositório e do instalador.

@@ -36,13 +36,13 @@ def test_independent_states_do_not_generate_alternative_signs(physical,amplitude
     assert result['evidence']['physical']==('user_declared' if physical else 'unknown')
     assert result['evidence']['amplitude']['I']==amplitude
     assert result['measurements']['metrics']['heart_rate']['value']==60
-    assert all(v['raw_multipliers'] in ((1,),(1,1)) for v in result['scenarios'])
+    assert all(v['raw_multipliers'] in ([1],[1,1]) for v in result['scenarios'])
 
 def test_channel_scope_and_derived_leads_and_amplitude_change():
     r=signal_record();r.meta['synthetic']=False;original=r.raw[:r.n].copy()
     evidence(r,'decoder','I',-1)
     result=automatic_analysis(r,infer=fake_infer)
-    assert len(result['scenarios'])==1 and result['scenarios'][0]['raw_multipliers']==(-1,)
+    assert len(result['scenarios'])==1 and result['scenarios'][0]['raw_multipliers']==[-1]
     assert normal_signs(r,'deeppsp_6l') is None
     evidence(r,'decoder','II',1);evidence(r,'amplitude','I');r.meta['mv_per_count']*=2
     assert evidence_state(r)['decoder']=={'I':-1,'II':1}
@@ -81,7 +81,7 @@ def test_technical_mode_explicit_and_never_enters_standard_print():
     normal=automatic_analysis(r,infer=fake_infer);technical=automatic_analysis(r,infer=fake_infer,technical_mode=True)
     assert not normal['scenarios'] and len(technical['scenarios'])==10
     assert analysis_key(r)!=analysis_key(r,technical_mode=True)
-    with pytest.raises(ValueError,match='tecnica'):pdf_bytes(r,layout='di',analysis=technical)
+    with pytest.raises(ValueError,match='técnica'):pdf_bytes(r,layout='di',analysis=technical)
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=normal))).pages[0].extract_text()
     assert 'FC: 60 bpm' in text and 'Referencia por canal' in text
     assert normal['evidence']['decoder']=={'I':None,'II':None}
@@ -101,7 +101,7 @@ def test_normal_interface_has_no_sign_comparison_controls(monkeypatch):
     monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
     r=signal_record();dialog=AutomaticAnalysisDialog(r,autostart=False)
     dialog.start();wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.score_table.rowCount()==15 and r._automatic_analysis['mode']=='normal'
+    assert dialog.score_table.rowCount()==3 and r._automatic_analysis['mode']=='normal'
     assert not dialog.findChildren(QCheckBox) and not hasattr(dialog,'technical')
     dialog.reject()
 

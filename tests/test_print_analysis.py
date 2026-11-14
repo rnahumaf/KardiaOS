@@ -1,5 +1,4 @@
-import io,os,time
-os.environ['QT_QPA_PLATFORM']='offscreen'
+import io,time
 import pytest
 from pypdf import PdfReader
 from PySide6.QtWidgets import QApplication
@@ -10,52 +9,36 @@ from test_measurements import signal_record
 from test_automatic_analysis import fake_infer
 from test_analysis_dialog import wait
 
-def test_one_sheet_contains_measures_and_every_model_sign_scenario():
-    r=signal_record();a=automatic_analysis(r,infer=fake_infer)
-    plan=page_plan(r,layout='di',analysis=a)
-    assert len(plan['rows'])==3 and plan['remaining_seconds']==pytest.approx(0)
-    assert min(v['top']-v['h'] for v in plan['rows'])>=80
-    pdf=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a)))
-    assert len(pdf.pages)==1
-    text=pdf.pages[0].extract_text()
-    for term in ['FC: 60 bpm','P:','QRS:','QTcF:','Fridericia','nao sao probabilidades','ECGFounder 1L','DeepPSP 2L','DeepPSP 6L']:
-        assert term in text
-    assert text.count('ECGFounder 1L |')==1
-    assert text.count('DeepPSP 2L |')==1
-    assert text.count('DeepPSP 6L |')==1
-
-def test_print_unavailable_has_reason_and_never_fabricates_score():
-    r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)
+def test_one_sheet_has_same_window_top_three_without_scores_or_raw_qt():
+    r=signal_record();a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
+    assert len(plan['rows'])==2 and plan['end']-plan['start']==10
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    assert 'FC: indisponivel' in text and 'Motivo:' in text
-    assert 'Indisponivel:' in text
+    for term in ['FC: 60 bpm','P:','QRS:','QTc: erro na estimativa','Hipóteses dos modelos']:assert term in text
+    assert 'QT:' not in text and '0.2500' not in text
+    assert len(a['hypotheses'])==3
+    for item in a['hypotheses']:assert item['label'] in text and item['model'] in text
+
+def test_short_blocked_and_poor_quality_trace_only():
+    r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)
+    with pytest.raises(ValueError,match='10 s'):pdf_bytes(r,analysis=a)
+    r=signal_record(noise=.7);a=automatic_analysis(r,infer=fake_infer);text=PdfReader(io.BytesIO(pdf_bytes(r,analysis=a,gain=5))).pages[0].extract_text()
+    assert 'Somente traçado' in text
+    for term in ['QTc:','FC:','Hipóteses','QRS:']:assert term not in text
 
 def test_preview_automatically_runs_caches_and_cancels(monkeypatch):
-    app=QApplication.instance() or QApplication([])
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
-    r=signal_record();p=PrintPreview(r)
-    assert not p.save_button.isEnabled()
-    wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning())
-    assert p.save_button.isEnabled() and p.analysis is r._automatic_analysis
-    p.close();p=PrintPreview(r)
+    app=QApplication.instance();monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
+    r=signal_record();p=PrintPreview(r);assert not p.save_button.isEnabled()
+    wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning(),seconds=20)
+    assert p.save_button.isEnabled() and p.analysis is r._automatic_analysis;p.close();p=PrintPreview(r)
     assert p.thread is None and p.save_button.isEnabled();p.close()
     def slow(key,values,cancel):
         while not cancel():time.sleep(.01)
         raise Cancelled()
     monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,slow,**kw))
     p=PrintPreview(signal_record());p.show();app.processEvents();p.reject()
-    wait(app,lambda:not p.thread.isRunning() and not p.isVisible())
-    assert p.analysis['status']=='cancelled'
-
+    wait(app,lambda:not p.thread.isRunning() and not p.isVisible(),seconds=20);assert p.analysis['status']=='cancelled'
 
 def test_changed_amplitude_or_signal_never_reuses_stale_analysis():
-    from kardiaos.automatic_analysis import analysis_key
-    app=QApplication.instance() or QApplication([])
-    r=signal_record();r._automatic_analysis=automatic_analysis(r,infer=fake_infer)
-    r._automatic_analysis_key=analysis_key(r)
-    r.meta['mv_per_count']*=2
-    p=PrintPreview(r,autostart=False)
-    assert p.analysis['status']=='running' and not p.save_button.isEnabled();p.close()
-    r._automatic_analysis_key=analysis_key(r);r.raw[900,0]+=4
-    p=PrintPreview(r,autostart=False)
-    assert p.analysis['status']=='running' and not p.save_button.isEnabled();p.close()
+    from kardiaos.automatic_analysis import cache_analysis
+    r=signal_record();cache_analysis(r,automatic_analysis(r,infer=fake_infer));r.meta['mv_per_count']*=2
+    p=PrintPreview(r,autostart=False);assert p.analysis['status']=='running' and not p.save_button.isEnabled();p.close()
