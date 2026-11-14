@@ -8,6 +8,11 @@ from scipy.signal import butter,sosfiltfilt,welch
 from . import delineation as dsp
 from .qt_fiducials import endpoint,t_filter
 FS=300
+# A representative waveform is not a QT delineation. Keep the existing morphology,
+# rhythm and repolarization-consistency limits; endpoint failures affect measures.
+VISUAL_FLAGS={'unstable_QRS_detection','fewer_than_5_similar_beats',
+    'minority_morphology_or_RR_group','T_dispersion_blurring',
+    'possible_T_alternation','T_polarity_disagreement'}
 def input_reason(raw):
     x=np.asarray(raw,float)
     if x.ndim!=1 or len(x)!=3000 or not np.isfinite(x).all() or x.std()<1e-12:return 'missing_short_nonfinite_flat'
@@ -57,25 +62,33 @@ def build(raw):
     qx=dsp.preprocess(x);tx=t_filter(x)
     align=sosfiltfilt(butter(3,[5,25],btype='bandpass',fs=FS,output='sos'),x)
     high=qx-gaussian_filter1d(qx,1);noise=float(np.median(abs(high-np.median(high)))*1.4826)
-    groups=[];eligible=[];rejected=[]
+    groups=[];eligible=[];rejected=[];assignments=[]
     for i,p in enumerate(peaks):
-        if i==0 or i+1==len(peaks):continue
+        if i==0 or i+1==len(peaks):
+            rejected.append(dict(beat=i,reason='missing_neighbour_RR'));continue
         prev=(p-peaks[i-1])/FS;nxt=(peaks[i+1]-p)/FS
         if p<99 or p+99>=len(x):continue
         amp=float(np.ptp(qx[p-45:p+46]))
         if amp<8*max(noise,1e-12):rejected.append(dict(beat=i,reason='QRS_contrast'));continue
-        eligible.append(i);options=[]
+        eligible.append(i);options=[];comparisons=[]
         for j,g in enumerate(groups):
-            if abs(prev/np.median(g['prev_rr'])-1)>.1 or abs(nxt/np.median(g['next_rr'])-1)>.1:continue
-            if not .7<=amp/np.median(g['amps'])<=1.3:continue
-            template=np.median(g['qrs_align'],axis=0)
+            prev_delta=abs(prev/np.median(g['prev_rr'])-1);next_delta=abs(nxt/np.median(g['next_rr'])-1)
+            ratio=amp/np.median(g['amps'])
+            decision=dict(group=j,previous_rr_relative_difference=float(prev_delta),next_rr_relative_difference=float(next_delta),amplitude_ratio=float(ratio))
+            comparisons.append(decision)
+            if prev_delta>.1 or next_delta>.1:decision['reason']='RR_difference_above_10_percent';continue
+            if not .7<=ratio<=1.3:decision['reason']='QRS_amplitude_outside_0.7_1.3';continue
+            template=np.median(g['qrs_align'],axis=0);scores=[]
             for lag in range(-9,10):
-                rho=corr(align[p+lag-45:p+lag+46],template)
+                rho=corr(align[p+lag-45:p+lag+46],template);scores.append((rho,-abs(lag),lag))
                 if rho>=.95:options.append((rho,-abs(lag),-j,lag,j))
+            best=max(scores)
+            decision.update(best_correlation=float(best[0]),best_translation_samples=int(best[2]),reason='' if best[0]>=.95 else 'QRS_correlation_below_0.95')
         if options:
             _,_,_,lag,j=max(options);g=groups[j]
         else:
             lag=0;g=dict(beat_indices=[],centers=[],shifts=[],prev_rr=[],next_rr=[],amps=[],qrs_align=[]);groups.append(g)
+        assignments.append(dict(beat=i,r=int(p),previous_rr_seconds=prev,next_rr_seconds=nxt,selected_group=len(groups)-1 if not options else j,translation_samples=lag,comparisons=comparisons))
         g['beat_indices'].append(i);g['centers'].append(p+lag);g['shifts'].append(lag);g['prev_rr'].append(prev);g['next_rr'].append(nxt);g['amps'].append(amp);g['qrs_align'].append(align[p+lag-45:p+lag+46])
     output=[]
     for index,g in enumerate(groups):
@@ -116,10 +129,13 @@ def build(raw):
             measurement_t_median=tm,measurement_qrs_median=qm,
             candidate=target,individuals=individuals,individual_qt_iqr_ms=iqr,template_minus_individual_median_ms=delta,
             t_relative_spread=spread,t_odd_even_difference=alternation,technical_eligible=not reasons,reasons=reasons,
+            visual_eligible=not VISUAL_FLAGS.intersection(reasons),visual_reasons=sorted(VISUAL_FLAGS.intersection(reasons)),
             amplitude_operation='none; original counts, pointwise median after integer translation',alignment='QRS translation only; no warping'))
     output.sort(key=lambda g:(-g['n_beats'],g['group']))
     return dict(groups=output,dominant_group=output[0]['group'] if output else None,eligible_beats=len(eligible),rejected=rejected,
-        discarded_from_dominant=sum(g['n_beats'] for g in output[1:]),reason='' if output else 'no_supported_group')
+        discarded_from_dominant=sum(g['n_beats'] for g in output[1:]),reason='' if output else 'no_supported_group',
+        detected_peaks=peaks,detector_stable=bool(d['stable']),assignments=assignments,
+        grouping_limits=dict(rr_relative=.1,amplitude_ratio=[.7,1.3],minimum_correlation=.95,max_translation_samples=9,minimum_similar_beats=5))
 
 def combine(group,model_result):
     reasons=list(group['reasons']);values=[]

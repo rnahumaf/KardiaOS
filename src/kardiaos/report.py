@@ -120,8 +120,10 @@ def measurement_line(analysis):
     parts=[]
     for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS')]:
         metric=item.get('metrics',{}).get(key,{})
-        value=metric.get('value');parts.append(name+': '+(f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'))
-    return ' | '.join(parts)+(f' | D{item["lead"]}' if item.get('lead') else '')
+        value=metric.get('value');text=f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'
+        if key!='heart_rate' and item.get('lead'):text+=f' (D{item["lead"]})'
+        parts.append(name+': '+text)
+    return ' | '.join(parts)
 
 
 def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',analysis=None,imageable=DEFAULT_IMAGEABLE):
@@ -160,6 +162,16 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
             else:path.moveTo(px,py)
             connected=True
         c.drawPath(path)
+        from .timing_markers import p_intervals
+        for mark in p_intervals(analysis,['I','II','III','aVR','aVL','aVF'][row['lead']],row['first'],row['last']):
+            c.setStrokeColor(HexColor('#8c6e39'));c.setLineWidth(.4)
+            for k in (mark['on'],mark['off']):
+                value=plan['values'][k,row['lead']]
+                if np.isfinite(value):
+                    xx=left+(times[k]-row['start'])*speed;yy=baseline+value*gain
+                    c.line(xx*mm,(yy-.7)*mm,xx*mm,(yy+.7)*mm)
+            k=mark['on'];value=plan['values'][k,row['lead']]
+            if np.isfinite(value):_text(c,'P',left+(times[k]-row['start'])*speed,baseline+value*gain+1.1,4)
         _text(c,row['title'],left,row['top']+.35,5.5,True)
         template=row['template']
         if template:

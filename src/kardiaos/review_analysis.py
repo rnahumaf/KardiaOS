@@ -24,7 +24,7 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
     from .qt_client import infer_qt,WEIGHT_SHA256
     r=recording;key=analysis_key(r) if r is not None else None
     request=scope(r,offset,duration)
-    result=dict(status='running',mode='normal',version='0.8.0',run_id=uuid.uuid4().hex,source_key=key,scope=request,
+    result=dict(status='running',mode='normal',version='0.8.1',run_id=uuid.uuid4().hex,source_key=key,scope=request,
         evidence=evidence_state(r),operational_profile=profile_info(r),clinical_validation=False,
         measurements=empty('Análise em preparação.'),scenarios=[],unavailable=[],representative={},hypotheses=[],
         qtc_label='QTc: erro na estimativa',selected_lead=None,report_window=None,
@@ -103,6 +103,7 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
                 source_first_sample=a,source_last_sample_exclusive=b,source_beat_indices=group['beat_indices'],
                 source_centers=group['centers'],translation_samples=group['shift_samples'],
                 median_operation='pointwise; no amplitude normalization or temporal warp',clinical_confidence=False,
+                visual_eligible=group['visual_eligible'],measurement_eligible=group['technical_eligible'],measurement_reasons=group['reasons'],
                 template_measurement_pipeline='QRS0.5–80Hz; T0.5–30Hz; zero phase',display_pipeline=result['review_pipeline'])
         result['templates_complete']=True
         for model,spec in catalog()['models'].items():

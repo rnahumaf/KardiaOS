@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.8.0 exploratória)
+## Análise automática local (0.8.1 exploratória)
 
 A janela comum de 10 s é escolhida pela qualidade observada dos canais I/II,
 sem consultar escores ou o valor QTc. Os classificadores reais são executados
@@ -131,3 +131,5 @@ O executável não é assinado digitalmente nesta versão.
 - Escalas físicas: https://doc.qt.io/qtforpython-6/PySide6/QtGui/QScreen.html
 
 Licença MIT para o código KardiaOS; dependências mantêm suas próprias licenças.
+
+A correção de reprodução, a distinção entre template e QT e a rastreabilidade de P estão em [playback-and-markers-081.md](docs/playback-and-markers-081.md).

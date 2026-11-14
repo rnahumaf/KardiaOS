@@ -69,4 +69,4 @@ def select_window(r,cancelled=lambda:False,emit=lambda text:None,offset=0.,durat
 
 def template_supported(entry):
     groups=entry['template']['groups']
-    return bool(entry['quality']['eligible'] and groups and groups[0]['technical_eligible'])
+    return bool(entry['quality']['eligible'] and groups and groups[0].get('visual_eligible',groups[0]['technical_eligible']))

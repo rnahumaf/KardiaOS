@@ -158,3 +158,5 @@ Os testes Qt usam offscreen e dados sintéticos; não operam a sessão gráfica.
 - [Andršová et al., Scientific Reports 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8275798/):
   variabilidade das correções e limitação de usar RR simultâneo sem história de
   estabilidade. Dez segundos não resolvem a histerese QT/RR.
+
+Atualização 0.8.1: [reprodução, template visual e marcos P](playback-and-markers-081.md). A disponibilidade visual do template é separada das falhas de delineação QT, sem relaxar os critérios de medição.

@@ -8,18 +8,36 @@ from .signal import LEADS
 PAPER=QColor('#fffcf1');MINOR=QColor('#eedfcb');MAJOR=QColor('#cfb89e');INK=QColor('#153f43')
 
 
+def trace_path(times, values, left, x_origin, baseline, time_scale, amplitude_scale, continuous=None):
+    """Preserve every sample and break; vectorize only the coordinate/validity tests."""
+    times=np.asarray(times);values=np.asarray(values)
+    xs=x_origin+(times-left)*time_scale;ys=baseline-values*amplitude_scale
+    valid=np.isfinite(values)
+    if continuous is None:continuous=np.r_[False,np.isclose(np.diff(times),1/300,atol=1e-6,rtol=0)]
+    path=QPainterPath();previous=False
+    for x,y,ok,join in zip(xs,ys,valid,continuous):
+        if ok:
+            if previous and join:path.lineTo(float(x),float(y))
+            else:path.moveTo(float(x),float(y))
+        previous=bool(ok)
+    return path
+
+
 class ECGPaper(QWidget):
     def __init__(self):
         super().__init__();self.setMinimumSize(640,500)
         self.recording=None;self.cursor=0.;self.ppmx=self.ppmy=4.;self.speed=25.;self.gain=10.;self.raw_mode=False
         self.overlay='Pronto para uma nova captura';self.overlay_detail='Toque os dois eletrodos superiores e apoie o inferior na perna esquerda.'
-        self.analysis=None;self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self.analysis=None;self._grid_cache={};self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
 
-    def current_templates(self):
+    def current_analysis(self):
         from .automatic_analysis import analysis_key
         a=self.analysis;r=self.recording
         if r is None or not a or a.get('source_key')!=analysis_key(r) or a.get('status')!='completed' or a.get('trace_only'):return {}
-        return a.get('representative',{})
+        return a
+
+    def current_templates(self):
+        return self.current_analysis().get('representative',{})
 
     def update(self,*args):
         r=self.recording;mode=r.mode_at(self.cursor) if r is not None and r.n else 1
@@ -39,7 +57,7 @@ class ECGPaper(QWidget):
     def paintEvent(self,_):
         p=QPainter(self);p.fillRect(self.rect(),PAPER);r=self.recording
         visible=r is not None and r.n and r.meta.get('start') is not None
-        mode=r.mode_at(self.cursor) if visible else 1;displayed=range(6) if mode==6 else (0,);templates=self.current_templates()
+        mode=r.mode_at(self.cursor) if visible else 1;displayed=range(6) if mode==6 else (0,);analysis=self.current_analysis();templates=analysis.get('representative',{})
         margin=12.;rh=(self.height()-24)/len(displayed);side=max(24.,.96*self.speed)
         for v in templates.values():
             array=np.asarray(v['raw_values_mv' if self.raw_mode else 'values_mv']);side=max(side,float(np.ptp(array))*self.gain+4)
@@ -49,30 +67,45 @@ class ECGPaper(QWidget):
         right=max(start+duration,self.cursor);left=right-duration
         times=r.times[:r.n] if visible else np.empty(0);first=int(np.searchsorted(times,max(start,left)));last=int(np.searchsorted(times,min(self.cursor,right),side='right'));last=max(first,last)
         values=r.lead_values(first,last,raw=self.raw_mode) if visible else None
+        continuous=np.r_[False,np.isclose(np.diff(times[first:last]),1/300,atol=1e-6,rtol=0)]
         def grid(rect):
-            for axis,size,step in [(0,rect.width(),self.ppmx),(1,rect.height(),self.ppmy)]:
-                for j in range(math.ceil(size/step)+1):
-                    p.setPen(QPen(MAJOR if j%5==0 else MINOR,.7 if j%5==0 else .35))
-                    if axis==0:p.drawLine(QPointF(rect.left()+j*step,rect.top()),QPointF(rect.left()+j*step,rect.bottom()))
-                    else:p.drawLine(QPointF(rect.left(),rect.top()+j*step),QPointF(rect.right(),rect.top()+j*step))
+            key=(rect.width(),rect.height(),self.ppmx,self.ppmy)
+            paths=self._grid_cache.get(key)
+            if paths is None:
+                paths=(QPainterPath(),QPainterPath())
+                for axis,size,step in [(0,rect.width(),self.ppmx),(1,rect.height(),self.ppmy)]:
+                    for j in range(math.ceil(size/step)+1):
+                        path=paths[int(j%5==0)]
+                        if axis==0:path.moveTo(j*step,0);path.lineTo(j*step,rect.height())
+                        else:path.moveTo(0,j*step);path.lineTo(rect.width(),j*step)
+                self._grid_cache[key]=paths
+                if len(self._grid_cache)>8:self._grid_cache.pop(next(iter(self._grid_cache)))
+            p.save();p.translate(rect.topLeft());p.setRenderHint(QPainter.RenderHint.Antialiasing,False)
+            for path,color,width in zip(paths,(MINOR,MAJOR),(.35,.7)):
+                p.setPen(QPen(color,width));p.drawPath(path)
+            p.restore()
         for row,ch in enumerate(displayed):
             rect=QRectF(datax,14+row*rh,max(1,endx-datax),rh-12);p.save();p.setClipRect(rect);grid(rect);p.restore()
             arr=values[:,ch] if visible else np.array([]);finite=arr[np.isfinite(arr)]
             low=min(0.,float(finite.min())*self.gain) if len(finite) else 0.;high=max(self.gain,float(finite.max())*self.gain) if len(finite) else self.gain
             baseline=rect.center().y()+(low+high)/2*self.ppmy
-            p.setRenderHint(QPainter.RenderHint.Antialiasing,True);p.setPen(QPen(INK,1.25))
+            p.setRenderHint(QPainter.RenderHint.Antialiasing,True);p.setPen(QPen(INK,1.0))
             pulse=QPainterPath(QPointF(margin,baseline))
             for x,y in [(1,0),(1,-self.gain),(1+.2*self.speed,-self.gain),(1+.2*self.speed,0),(2+.2*self.speed,0)]:pulse.lineTo(margin+x*self.ppmx,baseline+y*self.ppmy)
-            p.drawPath(pulse);path=QPainterPath();connected=False
-            for k in range(first,last):
-                value=values[k-first,ch]
-                if not np.isfinite(value) or k>first and not np.isclose(times[k]-times[k-1],1/300,atol=1e-6,rtol=0):connected=False
-                if not np.isfinite(value):continue
-                x=datax+(times[k]-left)*self.speed*self.ppmx;y=baseline-value*self.gain*self.ppmy
-                if connected:path.lineTo(x,y)
-                else:path.moveTo(x,y)
-                connected=True
+            p.drawPath(pulse)
+            path=trace_path(times[first:last],arr,left,datax,baseline,self.speed*self.ppmx,self.gain*self.ppmy,continuous)
             p.save();p.setClipRect(rect);p.drawPath(path);p.restore()
+            from .timing_markers import p_intervals
+            p.save();p.setClipRect(rect);p.setPen(QPen(QColor('#8c6e39'),.9));p.setFont(QFont('Segoe UI',7))
+            for mark in p_intervals(analysis,['I','II','III','aVR','aVL','aVF'][ch],first,last):
+                for k in (mark['on'],mark['off']):
+                    value=values[k-first,ch]
+                    if np.isfinite(value):
+                        xx=datax+(times[k]-left)*self.speed*self.ppmx;yy=baseline-value*self.gain*self.ppmy
+                        p.drawLine(QPointF(xx,yy-.7*self.ppmy),QPointF(xx,yy+.7*self.ppmy))
+                k=mark['on'];value=values[k-first,ch]
+                if np.isfinite(value):p.drawText(QPointF(datax+(times[k]-left)*self.speed*self.ppmx,baseline-value*self.gain*self.ppmy-1.1*self.ppmy),'P')
+            p.restore()
             p.setFont(QFont('Segoe UI',9,QFont.Weight.DemiBold));p.drawText(QPointF(datax,rect.top()-2),LEADS[ch])
             template=templates.get(['I','II','III','aVR','aVL','aVF'][ch])
             if template:
@@ -83,7 +116,7 @@ class ECGPaper(QWidget):
                 yy=br.center().y()-(v-(v.min()+v.max())/2)*self.gain*self.ppmy
                 path=QPainterPath(QPointF(xx[0],yy[0]))
                 for x,y in zip(xx[1:],yy[1:]):path.lineTo(x,y)
-                p.setPen(QPen(INK,1.25));p.drawPath(path)
+                p.setPen(QPen(INK,1.0));p.drawPath(path)
                 p.setPen(QPen(QColor('#6e817d'),1))
                 for marker in template.get('markers',[]):
                     k=marker['index']

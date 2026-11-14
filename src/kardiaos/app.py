@@ -71,7 +71,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.8.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.8.1" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -512,7 +512,12 @@ class Window(QMainWindow):
             self.position_label.setText(f"{self.clock(elapsed)} / {self.clock(length)}")
         if self.screen() and self._screen_key and screen_key(self.screen()) != self._screen_key:
             self.load_screen()
-        self.paper.update()
+        # Paused records do not need 60 identical paints per second. Explicit
+        # changes to filters, scale, analysis or screen already call update().
+        visual_state=(id(r),r.n if r else 0,self.paper.cursor,self.live)
+        if visual_state!=getattr(self,'_last_visual_state',None):
+            self._last_visual_state=visual_state
+            self.paper.update()
 
     @staticmethod
     def clock(seconds, decimal=False):
@@ -640,7 +645,8 @@ class Window(QMainWindow):
             lines=[]
             if not result.get('trace_only') and result.get('reportable'):
                 from .report import measurement_line
-                lines=[result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
+                window=result['report_window'];start=window['offset_seconds'];stop=start+window['duration_seconds']
+                lines=[f'Trecho analisado: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
                 if result.get('hypotheses'):lines.append('Hipóteses dos modelos')
                 lines.extend(item['label']+' · '+item['model'] for item in result.get('hypotheses',[])[:3])
             self.analysis_summary.setText('\n'.join(lines) or result.get('reason') or 'Somente traçado; qualidade insuficiente para análise.')
