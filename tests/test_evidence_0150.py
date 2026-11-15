@@ -101,3 +101,9 @@ def test_empty_analysis_has_no_stale_evidence(qt_application):
     d.on_result(dict(status='completed',classification={},measurements={}))
     assert d.evidence_panel.rule_selector.count()==0 and d.curve_overview.isHidden() is False
     d.close()
+
+
+def test_negative_rule_evidence_only_shows_eligible_leads():
+    r=signal_record();a=automatic_analysis(r)
+    for key,expected in [('p_tall',{'II','III','aVF'}),('q_prominent',{'I','II','aVL','aVF'}),('t_inversion',{'I','II','III','aVL','aVF'})]:
+        assert {v['lead'] for v in evidence_data(r,a,key)['traces']}==expected

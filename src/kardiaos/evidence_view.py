@@ -29,7 +29,10 @@ def evidence_data(recording,result,key,subset=-1):
         row=next((r for r in variant['rules'] if r['id']==key),row)
     selected=list(dict.fromkeys(row.get('leads',[])+row.get('possible_morphology_leads',[])))
     if key=='sinus':selected=[l for l in ('I','II','aVR') if l in reps]
-    if not selected:selected=list(reps)
+    if not selected:
+        eligible={'p_tall':('II','III','aVF'),'q_prominent':('I','II','aVL','aVF')}
+        if key in ('j_elevation','st_depression','t_inversion','t_tall'):eligible[key]=('I','II','III','aVL','aVF')
+        selected=[lead for lead in eligible.get(key,reps) if lead in reps]
     traces=[]
     for lead in selected:
         if lead not in reps:continue
