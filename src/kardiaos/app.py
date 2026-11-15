@@ -24,7 +24,7 @@ QLabel { color: #293d3a; }
 QLabel#brand { font-size: 22px; font-weight: 650; letter-spacing: -0.5px; }
 QLabel#muted { color: #657672; font-size: 12px; }
 QLabel#section { color: #647671; font-size: 11px; font-weight: 650; letter-spacing: 1px; }
-QLabel#timer { color: #174d4c; font-size: 36px; font-weight: 500; }
+QLabel#timer { color: #174d4c; font-size: 26px; font-weight: 500; }
 QLabel#status { color: #176a60; font-size: 14px; font-weight: 600; }
 QPushButton { background: white; border: 1px solid #d6e0dc; border-radius: 6px; padding: 8px 14px; color: #29423e; }
 QPushButton:hover { border-color: #739d92; background: #f6fbf9; }
@@ -45,7 +45,24 @@ QDialog { background: #f7f9f7; }
 QScrollBar:vertical { background: #edf2ef; width: 9px; margin: 0; }
 QScrollBar::handle:vertical { background: #b1c5bc; border-radius: 4px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QWidget#shell QPushButton { background: #e5eeea; border-color: #9eb8ae; font-weight: 600; }
+QWidget#shell QPushButton:hover { background: #d5e6de; border-color: #387b68; }
+QWidget#shell QPushButton:pressed { background: #bfd9cc; }
+QWidget#shell QPushButton:focus { border: 2px solid #287a65; padding: 7px 13px; }
+QWidget#shell QPushButton:disabled { background: #f0f3f1; border-color: #dfe6e2; color: #a3b0aa; }
+QWidget#shell QPushButton#primary { background: #176b5d; border-color: #176b5d; color: white; }
+QWidget#shell QPushButton#primary:hover { background: #125749; }
+QWidget#shell QPushButton#primary:disabled { background: #9bb9b0; border-color: #9bb9b0; }
+QWidget#controls QComboBox { background: #eaf0ed; border: none; border-bottom: 1px solid #b2c5bc; border-radius: 3px; padding: 3px 6px 3px 6px; min-height: 20px; }
+QWidget#controls QComboBox:hover { background: #dfeae4; border-bottom-color: #43816d; }
+QWidget#controls QComboBox:focus { background: #e1eee7; border-bottom: 2px solid #176b5d; padding-bottom: 2px; }
+QWidget#controls QComboBox:disabled { background: #f0f3f1; color: #8a9891; border-bottom-color: #dae2dd; }
+QWidget#controls QComboBox::drop-down { border: none; width: 22px; }
+QWidget#controls QComboBox::down-arrow { image: url(ASSET_ROOT/chevron-down.svg); width: 14px; height: 14px; }
+QWidget#controls QComboBox QAbstractItemView { background: white; border: 1px solid #a5bdb2; selection-background-color: #dcece3; selection-color: #174d3f; padding: 3px; }
+QWidget#controls QCheckBox { min-height: 23px; }
 """
+STYLE = STYLE.replace('ASSET_ROOT', (Path(__file__).parent / 'assets').as_posix())
 
 
 def label(text, name="", wrap=False):
@@ -71,7 +88,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.13.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.13.1" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -184,46 +201,44 @@ class Window(QMainWindow):
         body.addLayout(chart_column, 1)
 
         side = QWidget()
+        side.setObjectName('controls')
         side.setFixedWidth(244)
         sidebar = QVBoxLayout(side)
         sidebar.setContentsMargins(0, 0, 0, 0)
-        sidebar.setSpacing(10)
-        sidebar.addWidget(label("AQUISIÇÃO", "section"))
+        sidebar.setSpacing(6)
+        acquisition_row=QHBoxLayout();acquisition_row.setSpacing(8)
         self.state_label = label("Pronto para iniciar", "status", True)
-        sidebar.addWidget(self.state_label)
+        self.state_label.setStyleSheet('font-size:12px;')
         self.timer_label = label("00:00.0", "timer")
-        sidebar.addWidget(self.timer_label)
-        self.detail = label("Feche o Kardia no celular. Mantenha os dedos nos eletrodos superiores e o inferior na perna esquerda.", "muted", True)
-        sidebar.addWidget(self.detail)
-        self.metrics = label("Nenhuma amostra recebida", "muted", True)
-        sidebar.addWidget(self.metrics)
+        acquisition_row.addWidget(self.timer_label);acquisition_row.addWidget(self.state_label,1);sidebar.addLayout(acquisition_row)
+        self.state_label.setToolTip("Feche o Kardia no celular. Mantenha os dedos nos eletrodos superiores e o inferior na perna esquerda.")
+        self.timer_label.setToolTip("Nenhuma amostra recebida")
         self.autorun=QCheckBox("Analisar ao concluir");self.autorun.setChecked(self.settings.value("research/autorun",True,type=bool));sidebar.addWidget(self.autorun)
-        sidebar.addSpacing(8)
+        sidebar.addSpacing(2)
         rule = QFrame()
         rule.setObjectName("rule")
         sidebar.addWidget(rule)
-        sidebar.addWidget(label("PROCESSAMENTO", "section"))
         self.profile_combo=QComboBox()
-        self.profile_combo.addItem("Pesquisa · mV estimados",EMPIRICAL)
-        self.profile_combo.addItem("Referência por canal",REFERENCED)
+        self.profile_combo.addItem("Pesquisa",EMPIRICAL)
+        self.profile_combo.addItem("Referenciado",REFERENCED)
+        self.profile_combo.setItemData(0,'Pesquisa · amplitudes estimadas em mV',Qt.ItemDataRole.ToolTipRole)
+        self.profile_combo.setItemData(1,'Referência por canal',Qt.ItemDataRole.ToolTipRole)
+        self.profile_combo.setToolTip('Pesquisa: amplitudes estimadas em mV. Referenciado: referências por canal em Detalhes da análise > Proveniência.')
         self.profile_combo.setCurrentIndex(max(0,self.profile_combo.findData(self.settings.value('research/profile',EMPIRICAL))))
-        sidebar.addWidget(self.profile_combo)
+        self.control_row(sidebar,'Processamento',self.profile_combo)
         self.auto = QCheckBox("Ajuste automático")
         self.auto.setChecked(True)
         self.auto.toggled.connect(self.auto_changed)
         sidebar.addWidget(self.auto)
         self.base = self.combo(sidebar, "Linha de base", [("Preservar", 0), ("0,05 Hz · leve", .05), ("0,5 Hz · padrão", .5), ("1 Hz · intensa", 1)], 2)
         self.smooth = self.combo(sidebar, "Suavização", [("Desligada", 0), ("25 Hz · intensa", 25), ("40 Hz · moderada", 40), ("80 Hz · leve", 80)], 1)
-        self.notch = self.combo(sidebar, "Interferência elétrica", [("Desligada", 0), ("50 Hz", 50), ("60 Hz", 60)], 2)
+        self.notch = self.combo(sidebar, "Interferência", [("Desligada", 0), ("50 Hz", 50), ("60 Hz", 60)], 2)
         for combo in (self.base, self.smooth, self.notch):
             combo.currentIndexChanged.connect(self.manual_filter)
         self.raw_check = QCheckBox("Comparar com o bruto")
         self.raw_check.toggled.connect(self.raw_toggled)
         sidebar.addWidget(self.raw_check)
-        self.latency = label("Filtros causais · buffer visual de 60 ms", "muted", True)
-        sidebar.addWidget(self.latency)
-        sidebar.addSpacing(6)
-        scale_row = QHBoxLayout()
+        self.raw_check.setToolTip("Filtros causais · buffer visual de 60 ms")
         self.speed = QComboBox()
         for value in (25, 50):
             self.speed.addItem(f"{value} mm/s", value)
@@ -233,14 +248,12 @@ class Window(QMainWindow):
         self.gain.setCurrentIndex(1)
         self.speed.currentIndexChanged.connect(self.scales_changed)
         self.gain.currentIndexChanged.connect(self.scales_changed)
-        scale_row.addWidget(self.speed)
-        scale_row.addWidget(self.gain)
-        sidebar.addLayout(scale_row)
+        self.control_row(sidebar,'Velocidade',self.speed)
+        self.control_row(sidebar,'Ganho',self.gain)
         self.cal_button = QPushButton("Tela e calibração")
         self.cal_button.clicked.connect(self.calibrate)
         sidebar.addWidget(self.cal_button)
         sidebar.addStretch(1)
-        sidebar.addWidget(label("Perfil e referências em Detalhes da análise > Proveniência.", "muted", True))
         side_scroll = QScrollArea()
         side_scroll.setFrameShape(QFrame.Shape.NoFrame)
         side_scroll.setWidgetResizable(True)
@@ -285,13 +298,18 @@ class Window(QMainWindow):
         QTimer.singleShot(100, self.bind_screen)
 
     def combo(self, layout, title, items, index):
-        layout.addWidget(label(title, "muted"))
         combo = QComboBox()
         for text, data in items:
             combo.addItem(text, data)
         combo.setCurrentIndex(index)
-        layout.addWidget(combo)
+        self.control_row(layout,title,combo)
         return combo
+
+    def control_row(self, layout, title, combo):
+        row=QHBoxLayout();row.setSpacing(6)
+        caption=label(title);caption.setBuddy(combo);caption.setFixedWidth(94)
+        combo.setAccessibleName(title);combo.setFixedWidth(144)
+        row.addWidget(caption);row.addWidget(combo);layout.addLayout(row)
 
     def bind_screen(self):
         if self.windowHandle():
@@ -315,7 +333,7 @@ class Window(QMainWindow):
             print(text, flush=True)
         self.state_label.setText(text)
         if detail is not None:
-            self.detail.setText(detail)
+            self.state_label.setToolTip(detail)
 
     def auto_changed(self, checked):
         self.save_preferences()
@@ -342,7 +360,7 @@ class Window(QMainWindow):
             self.dirty = True
         self.save_preferences()
         delay = Processor(config).delay_ms()
-        self.latency.setText(f"Filtro: ~{delay:.0f} ms a 10 Hz\nBuffer visual: 60 ms. Latência do aparelho não medida.")
+        self.raw_check.setToolTip(f"Filtro: ~{delay:.0f} ms a 10 Hz\nBuffer visual: 60 ms. Latência do aparelho não medida.")
         self.paper.update()
 
     def raw_toggled(self, checked):
@@ -496,10 +514,10 @@ class Window(QMainWindow):
                 if kind == "samples":
                     self.accept_samples(*data)
                 elif kind == "status" and self.live and not self.pending_finish:
-                    self.detail.setText(data)
+                    self.state_label.setToolTip(data)
                 elif kind == "error" and self.live:
                     self.stop_reason = data
-                    self.detail.setText(data)
+                    self.set_state('Falha na aquisição',data)
                 elif kind == "done" and self.live:
                     self.finish()
             if self.stream.overflow and self.live:
@@ -518,7 +536,7 @@ class Window(QMainWindow):
                 if elapsed >= self.duration.value() and not self.pending_finish:
                     self.stop("Duração programada concluída")
             if now - self.last_stats >= 1:
-                self.metrics.setText(f"{r.n:,} pares de amostras\n{r.gaps} interrupção(ões) de transporte")
+                self.timer_label.setToolTip(f"{r.n:,} pares de amostras\n{r.gaps} interrupção(ões) de transporte")
                 if self.diagnostic:
                     print(f"Amostras={r.n}; aceitas={int(r.quality[:r.n].sum())}; lacunas={r.gaps}; estado={self.state_label.text()}", flush=True)
                 self.last_stats = now
@@ -623,7 +641,7 @@ class Window(QMainWindow):
             self.dirty = False
             self.replaying = False
             self.set_state("Captura carregada", "Dados sintéticos." if recording.meta.get("synthetic") else "Reprodução local. Você pode ajustar os filtros sem alterar o bruto.")
-            self.metrics.setText(f"{recording.n:,} pares de amostras\n{recording.gaps} interrupção(ões)")
+            self.timer_label.setToolTip(f"{recording.n:,} pares de amostras\n{recording.gaps} interrupção(ões)")
             self.timer_label.setText(self.clock(recording.last_time - float(recording.meta.get("start") or 0), True))
             self.update_buttons()
             self.schedule_analysis()
@@ -718,7 +736,7 @@ class Window(QMainWindow):
         if cache_analysis(record,result):
             self.paper.analysis=result;self.paper.update()
             self.refresh_measure_panel(result)
-            self.latency.setText('Revisão: filtros de fase zero.\nAo vivo: filtros causais e buffer de 60 ms.')
+            self.raw_check.setToolTip('Revisão: filtros de fase zero.\nAo vivo: filtros causais e buffer de 60 ms.')
         elif result.get('status')=='cancelled':self.analysis_summary.setText('Análise interrompida.')
         else:self.analysis_summary.setText(result.get('reason','Processamento alterado; reavaliando o registro.'))
 

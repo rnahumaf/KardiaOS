@@ -4,6 +4,9 @@ O ícone usa o traçado Activity de Lucide, com fundo e cores adaptados. A licen
 ISC/MIT do projeto acompanha `src/kardiaos/assets/LUCIDE-LICENSE`.
 Fonte: https://github.com/lucide-icons/lucide/blob/main/icons/activity.svg
 
+A seta dos seletores usa Chevron Down da mesma coleção e licença, com cor adaptada.
+Fonte: https://github.com/lucide-icons/lucide/blob/main/icons/chevron-down.svg
+
 O protocolo de interoperabilidade M2 foi implementado a partir das evidências de
 ShaneBreazeale/kardia-rs, disponível sob MIT ou Apache-2.0:
 https://github.com/ShaneBreazeale/kardia-rs

@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.13.0 exploratória)
+## Análise automática local (0.13.1 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -99,6 +99,10 @@ O painel inicial mostra classificação e uma tabela lateral compacta com FC, PR
 QRS, QT/QTc e duração de P, acima dos controles de aquisição. Quando o QTcF
 está indisponível, o motivo mostra a condição que falhou e, quando aplicável,
 a variabilidade dos RR observada e o limite usado pelo programa.
+Os controles laterais usam uma linha por configuração, com seletores discretos,
+botões destacados e foco visível. O cronômetro mostra as estatísticas de aquisição
+em sua dica; o estado da captura e a comparação com o bruto também oferecem
+informações auxiliares por dica, sem ocupar a lateral com parágrafos fixos.
 Idade e sexo opcionais ficam no painel e atualizam a análise automaticamente.
 A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.
