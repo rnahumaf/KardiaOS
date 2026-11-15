@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.14.0 exploratória)
+## Análise automática local (0.15.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -114,10 +114,23 @@ A classificação padrão usa regras locais de ritmo, intervalos e morfologia,
 com critérios e motivos de indisponibilidade visíveis. Idade e sexo são opcionais.
 Os critérios de amplitude usam milivolts estimados mesmo com instabilidade,
 mostrando as limitações. Sem idade informada, comparam com os limiares de adulto
-com aviso explícito; as demais regras dependentes de idade/sexo mantêm seus bloqueios.
+com aviso explícito, também nos critérios de frequência e intervalos. Sem sexo,
+QTcF é comparado com ambos os limiares; discordâncias aparecem como possíveis
+somente nos detalhes. O ritmo sinusal pode assumir a polaridade exibida, mantendo
+as verificações de P, associação P–QRS e qualidade, com motivos específicos.
 Achados da mediana completa alimentam a conclusão. Alterações presentes apenas
 em subconjuntos e descrições de P/T bifásicas ou T com entalhe ficam nos detalhes.
+A instabilidade dos intervalos também preserva o resultado da mediana completa
+com aviso. Marcos ausentes e bloqueios do cálculo de QTc por RR continuam ativos.
 O início global de T é preservado nas comparações; sua variação é registrada.
+
+Nos detalhes, clique em um achado ou descrição para abrir sua evidência em
+**Curvas e marcos**. Derivações envolvidas ficam empilhadas com escalas comuns;
+pontos e faixas numerados correspondem à tabela de valores e limiares. Possibilidades
+de subconjuntos sobrepõem suas curvas à mediana completa, com seletor de origem.
+Para frequência e regularidade, o gráfico de RR mostra a gravação inteira; clicar
+em um RR localiza o trecho de 10 segundos no traçado contínuo.
+[Método e apresentação das evidências na versão 0.15.0](docs/evidence-0150.md).
 [Critérios exploratórios e descrições da versão 0.14.0](docs/exploratory-rules-0140.md).
 
 O botão **Análise neural…** abre a avaliação exploratória e inicia, em sequência,

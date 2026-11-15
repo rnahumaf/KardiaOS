@@ -27,6 +27,7 @@ def describe_wave(values, noise, kind):
     if len(lobes) == 2:
         result['biphasic'] = dict(status='detected' if all(abs(v['amplitude_mv']) >= strong and v['prominence_mv'] >= strong for v in lobes) else 'possible',
                                   components=sorted(lobes, key=lambda v:v['index']))
+    result['biphasic']['thresholds']=dict(possible_mv=weak,defined_mv=strong,minimum_width_samples=2,minimum_distance_samples=6)
     if kind != 't': return result
     sign = 1 if y[np.argmax(abs(y))] >= 0 else -1
     z = sign*y
@@ -45,4 +46,5 @@ def describe_wave(values, noise, kind):
     if pairs:
         best = max(pairs,key=lambda v:(v['status']=='detected',v['depth']))
         result['notched'] = dict(status=best['status'],components=best['components'],depth_mv=best['depth'])
+    result['notched']['thresholds']=dict(possible_depth_mv=weak_notch,defined_depth_mv=strong_notch,possible_peak_ratio=.15,defined_peak_ratio=.3)
     return result

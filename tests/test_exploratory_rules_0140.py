@@ -18,7 +18,7 @@ def test_unreferenced_amplitude_and_missing_age_use_explicit_assumptions():
     assert any('Idade não informada' in s for s in v['limitations'])
     assert any('Convenção elétrica' in s for s in v['limitations'])
     assert any('calibração não validada' in s for s in v['limitations'])
-    assert status(c,'brady')=='unavailable' and status(c,'qt_long')=='unavailable'
+    assert status(c,'brady')=='not_detected' and status(c,'qt_long')=='not_detected'
     np.testing.assert_array_equal(r.raw,before)
     r.meta['clinical_context']['age_years']=10
     assert status(classify(r,m,reps,feature_data=data),'p_tall')=='unavailable'
@@ -32,7 +32,7 @@ def test_instability_never_discards_a_full_median_amplitude_finding():
     c=classify(r,m,reps,feature_data=data);v=row(c,'p_tall')
     assert v['status']=='detected' and v['central_status']=='detected' and v in c['findings']
     assert v['technical_status']=='advisory' and 'Marco instável.' in v['limitations']
-    assert status(c,'pr_long')=='unavailable'
+    assert status(c,'pr_long')=='not_detected'
 
 
 def test_subset_only_amplitude_is_visible_but_does_not_change_summary():

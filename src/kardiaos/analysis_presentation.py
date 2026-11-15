@@ -28,7 +28,9 @@ def descriptive_messages(classification):
                 morphology.append('Possível '+rule['label']+' — '+', '.join(rule['possible_morphology_leads'])+'; componente discreto na mediana completa.')
         if rule.get('possible'):
             p=rule['possible']
-            text='Possível '+rule['label']+' — '+', '.join(p['leads'])+'; '+', '.join(p['subsets'])+'.'
+            text='Possível '+rule['label']+(' — '+', '.join(p['leads']) if p['leads'] else '')+'; '+', '.join(p['subsets'])+'.'
             (morphology if rule.get('presentation')=='description' else possibilities).append(text)
         limitations.extend(rule.get('limitations', []))
+        if rule.get('possible_context'):possibilities.append(rule['possible_context'])
+    limitations.extend(classification.get('sinus_limitations',[]))
     return morphology,possibilities,list(dict.fromkeys(limitations))

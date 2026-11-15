@@ -6,7 +6,7 @@ Observed ranges are sensitivity envelopes, never clinical confidence intervals.
 import numpy as np
 from .median_landmarks import smooth_median, delineate_medians
 
-VERSION = 'median-stability-2'
+VERSION = 'median-stability-3'
 MIN_BEATS = 10
 LIMIT_SAMPLES = dict(pon=6, poff=6, qon=3, qoff=3, ton=9, toff=9)
 LABELS = dict(pon='Início de P', poff='Fim de P', qon='Início do QRS',
@@ -40,7 +40,8 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
         if 'ton' in points: analysis_points['ton'] = points['ton']
         else: analysis_points.pop('ton',None)
         result['replicates'].append(dict(points=p,analysis_points=analysis_points,values=values,
-            features=features(dict(global_fiducials=analysis_points),reps)))
+            features=features(dict(global_fiducials=analysis_points),reps),
+            curves={lead:{key:np.asarray(rep[key]).tolist() for key in ('values_mv','pt_values_mv')} for lead,rep in reps.items()}))
     for key,label in LABELS.items():
         if key not in points:
             result['boundaries'][key]=dict(status='unavailable',reason=label+' indisponível.');continue
@@ -114,12 +115,14 @@ def guard_rules(recording, measurement, rows):
     variants=[]
     for replica in quality['replicates']:
         m=dict(measurement,metrics={k:dict(v,value=replica['values'].get(k,v['value'])) for k,v in measurement['metrics'].items()})
+        if measurement['metrics'].get('qtc_f',{}).get('value') is None:
+            m['metrics']['qtc_f']['value']=None
         variants.append({v['id']:v for v in classify(recording,m,{},feature_data=replica['features'],check_stability=False)['rules']})
     for row in rows:
         deps=RULE_BOUNDARIES.get(row['id'])
         if not deps:continue
         boundaries=[quality['boundaries'][k] for k in deps]
-        if row['amplitude_estimated']:
+        if deps:
             # Keep the full-median result. Subset disagreements are advisory,
             # and contiguity is tested inside each subset, never across subsets.
             row['central_status']=row['status']
@@ -136,10 +139,3 @@ def guard_rules(recording, measurement, rows):
                     leads=sorted(set().union(*(set(v['leads']) for _,v in detected))),
                     reason='Presente apenas em subconjuntos; não altera a conclusão da mediana completa.')
             continue
-        if row['status']=='unavailable':continue
-        reason=''
-        if any(v['status']=='unverified' for v in boundaries):reason='Estabilidade não verificada: poucos batimentos.'
-        elif any(v['status']=='unavailable' or v.get('detected_subsets',0)<4 for v in boundaries):reason='Marcos necessários não reproduzidos em todos os subconjuntos.'
-        elif any(v.get('contrast',0)<12 for v in boundaries):reason='Marcos necessários com baixo contraste.'
-        elif any(v[row['id']]['status']!=row['status'] for v in variants):reason='A variação entre medianas atravessa o limiar ou muda a avaliação deste critério.'
-        if reason:row.update(status='unavailable',reason=reason,technical_status='indeterminate',central_status=row['status'])

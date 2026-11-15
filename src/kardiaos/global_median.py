@@ -180,6 +180,7 @@ def analyze(recording, cancelled=lambda: False):
     names = LEADS if channels == 2 else ['I']
     factor, signs = scale_and_signs(r)
     candidates, peaks_all, rr_all, incomplete, unusable = [], [], [], [], []
+    rr_pairs = []
     # Fixed shared crop; shifts never stretch P, QRS, T or an RR interval.
     pre, post = 105, 180
     for a, b in segments(r, channels):
@@ -191,6 +192,7 @@ def analyze(recording, cancelled=lambda: False):
         peaks, align = shared_peaks(native)
         peaks_all.extend((peaks + a).tolist())
         rr_all.extend((np.diff(peaks) / FS).tolist())
+        rr_pairs.extend([[int(x+a),int(y+a)] for x,y in zip(peaks[:-1],peaks[1:])])
         raw = six_leads(native) if channels == 2 else native
         qrs = np.column_stack([dsp.preprocess(raw[:, ch]) for ch in range(len(names))])
         pt = np.column_stack([t_filter(raw[:, ch]) for ch in range(len(names))])
@@ -205,7 +207,7 @@ def analyze(recording, cancelled=lambda: False):
     # A 6L morphology set may coexist with valid I-only portions. Keep those
     # original beats in rhythm without manufacturing RR across missing contact.
     if channels == 2:
-        peaks_all, rr_all = [], []
+        peaks_all, rr_all, rr_pairs = [], [], []
         for a, b in segments(r, 1):
             if cancelled(): raise Cancelled()
             cuts = [a, *list(a + np.flatnonzero(np.diff((r.lead_modes[a:b] == 6).astype(int))) + 1), b]
@@ -216,9 +218,10 @@ def analyze(recording, cancelled=lambda: False):
                 if not joint_quality(native): continue
                 peaks, _ = shared_peaks(native)
                 peaks_all.extend((peaks + lo).tolist()); rr_all.extend((np.diff(peaks) / FS).tolist())
+                rr_pairs.extend([[int(x+lo),int(y+lo)] for x,y in zip(peaks[:-1],peaks[1:])])
     rr = np.asarray(rr_all, dtype=float)
     median_rr = float(np.median(rr)) if len(rr) else None
-    rhythm = dict(detected_peaks=peaks_all, rr_seconds=rr_all, method='RR originais, inclusive batimentos excluídos da mediana; sem atravessar lacunas')
+    rhythm = dict(detected_peaks=peaks_all, rr_seconds=rr_all, rr_pairs=rr_pairs, method='RR originais, inclusive batimentos excluídos da mediana; sem atravessar lacunas')
     audit = dict(version=VERSION, scope='whole_recording', channels=names, detected_beats=len(peaks_all),
                  accepted_beats=len(accepted), excluded=excluded, incomplete=incomplete, unusable_segments=unusable,
                  exclusions_scope='all_leads', maximum_shift_samples=12,

@@ -75,7 +75,7 @@ def check_automatic():
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     began=time.perf_counter()
     result=automatic_analysis(record)
-    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-4'
+    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-5'
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
     assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
     assert len(result['representative'])==6
@@ -89,6 +89,10 @@ def check_automatic():
     assert elapsed<2, f'Rules and rendered UI exceeded target: {elapsed:.3f} s'
     assert dialog.score_table.rowCount()>=17 and dialog.score_table.columnCount()==2 and dialog.lead_selector.count()==6
     assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
+    for rule in result['classification']['rules']:
+        dialog.open_evidence(rule['id']);QApplication.processEvents()
+        assert dialog.evidence_panel.data['key']==rule['id'] and not dialog.evidence_panel.plot.grab().isNull()
+    dialog.show_all_curves();dialog.tabs.setCurrentIndex(0)
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
         assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
         assert measured['method_version']=='global-median-5'

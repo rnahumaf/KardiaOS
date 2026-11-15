@@ -31,16 +31,20 @@ def test_normal_in_evaluated_criteria_retains_missing_items_and_requires_sinus()
     assert c['summary']=='Sinusal, regular, normal nos critérios avaliados'
     assert c['sinus_supported'] and c['regular'] and not c['missing']
     r.meta['clinical_context'].pop('sex');c=classify(r,m,reps)
-    assert c['status']=='no_findings' and status(c,'qt_long')=='unavailable' and 'QTcF prolongado' in c['missing']
+    assert c['status']=='no_findings' and status(c,'qt_long')=='not_detected' and not c['missing']
     r.meta['clinical_context']['sex']='male';m['global_fiducials'].pop('pon')
     assert classify(r,m,reps)['status']=='inconclusive'
 
 
 @pytest.mark.parametrize('age',[None,10,False,-2,float('nan')])
-def test_missing_or_invalid_age_never_uses_adult_rules(age):
+def test_missing_age_uses_assumption_but_known_child_remains_unavailable(age):
     r,m,reps=case();r.meta['clinical_context']['age_years']=age;m['metrics']['heart_rate']['value']=45
     c=classify(r,m,reps)
-    assert status(c,'brady')=='unavailable' and c['status']=='no_findings' and c['missing']
+    if age==10:
+        assert status(c,'brady')=='unavailable' and c['missing']
+    else:
+        assert status(c,'brady')=='detected'
+        assert any('Idade não informada' in v for row in c['rules'] for v in row['limitations'])
 
 
 @pytest.mark.parametrize('key,metric,value',[('brady','heart_rate',59),('tachy','heart_rate',101),
@@ -102,7 +106,7 @@ def test_excluded_beat_and_irregular_rr_cannot_generate_sinus_normal_summary():
     c=classify(r,m,reps);assert not c['regular'] and status(c,'irregular')=='detected'
     r.meta.pop('clinical_context')
     c=classify(r,m,reps)
-    assert c['status']=='partial' and c['summary'].startswith('Achados na análise automática')
+    assert c['status']=='findings' and c['summary'].startswith('Achados na análise automática')
     assert status(c,'irregular')=='detected'
 
 

@@ -77,7 +77,8 @@ def test_qtc_rule_does_not_blame_known_sex_for_blocked_measurement():
     assert rule['status']=='unavailable' and rule['reason']==m['metrics']['qtc_f']['reason']
     m['metrics']['qtc_f']['value']=400;r.meta['clinical_context']['sex']=None
     rule=next(v for v in classify(r,m,reps)['rules'] if v['id']=='qt_long')
-    assert rule['reason']=='Sexo de referência não informado.'
+    assert rule['status']=='not_detected' and not rule['reason']
+    assert any('Sexo não informado' in value for value in rule['limitations'])
 
 
 def test_side_table_stays_above_acquisition_and_displays_unavailable_reason(tmp_path):

@@ -58,14 +58,14 @@ def test_missing_boundary_and_low_contrast_have_specific_reasons(monkeypatch):
     assert 'baixo contraste' in q['boundaries']['pon']['reason']
 
 
-def test_few_beats_preserve_values_and_suspend_dependent_rules(monkeypatch):
+def test_few_beats_preserve_values_and_warn_dependent_rules(monkeypatch):
     r,m,reps,q=known(monkeypatch,n=9)
     assert not q['replicates'] and m['metrics']['p_duration']['value']==80
     assert m['metrics']['p_duration']['quality']['status']=='unverified'
     c=classify(r,m,reps)
     assert status(c,'irregular')=='not_detected' and status(c,'brady')=='not_detected'
-    assert status(c,'qrs_wide')=='unavailable'
-    assert next(v for v in c['rules'] if v['id']=='qrs_wide')['technical_status']=='indeterminate'
+    assert status(c,'qrs_wide')=='not_detected'
+    assert next(v for v in c['rules'] if v['id']=='qrs_wide')['technical_status']=='advisory'
 
 
 def coherent_quality(m,reps):
@@ -74,12 +74,13 @@ def coherent_quality(m,reps):
         replicates=[dict(values={k:v['value'] for k,v in m['metrics'].items()},features=features(m,reps)) for _ in range(4)])
 
 
-def test_threshold_crossing_suspends_only_affected_rule():
+def test_threshold_crossing_preserves_central_result_and_records_possibility():
     r,m,reps=case();m['metrics']['pr']['value']=199;m['technical_quality']=coherent_quality(m,reps)
     m['technical_quality']['replicates'][0]['values']['pr']=201
     c=classify(r,m,reps)
-    assert status(c,'pr_long')=='unavailable' and status(c,'pr_short')=='not_detected'
+    assert status(c,'pr_long')=='not_detected' and status(c,'pr_short')=='not_detected'
     assert status(c,'qrs_wide')=='not_detected' and status(c,'qt_long')=='not_detected'
+    assert next(v for v in c['rules'] if v['id']=='pr_long')['possible']
 
 
 def test_amplitude_rule_uses_subset_median_features():

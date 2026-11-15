@@ -40,7 +40,8 @@ def test_context_changes_debounce_recompute_and_keep_raw(tmp_path,monkeypatch):
     w.sex.setCurrentIndex(0)
     wait(app,lambda:cached_analysis(r) is not None and not w._analysis_thread.isRunning() and not w._analysis_timer.isActive())
     assert 'normal nos critérios avaliados' in w.analysis_summary.text()
-    assert 'QTcF' in w.analysis_pending.text() and w.analysis_pending.isVisible()
+    assert not w.analysis_pending.text() and not w.analysis_pending.isVisible()
+    assert any('Sexo não informado' in text for rule in cached_analysis(r)['classification']['rules'] for text in rule['limitations'])
     w.dirty=False;w.close()
 
 
@@ -93,7 +94,8 @@ def test_details_summary_measures_curves_and_expandable_criteria(tmp_path):
     wait(app,lambda:d.result is not None and not d.busy())
     assert d.tabs.currentIndex()==0 and not d.technical_body.isVisible()
     assert d.lead_selector.isEnabled() and d.export_button.isEnabled()
-    assert d.pending_label.isVisible() and 'Pendências' in d.pending_label.text()
+    assert not d.pending_label.isVisible()
+    assert d.limitations_label.isVisible() and 'Idade não informada' in d.limitations_label.text()
     assert w.paper.analysis is d.result and w.measure_values['heart_rate'].text()=='60 bpm'
     from PySide6.QtTest import QTest
     from PySide6.QtCore import Qt

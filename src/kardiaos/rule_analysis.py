@@ -8,7 +8,7 @@ from .median_landmarks import mad
 from .orientation import normal_signs
 from .morphology_rules import describe_wave
 
-VERSION = 'limb-rules-4'
+VERSION = 'limb-rules-5'
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
 DESCRIPTIONS = ('p_biphasic', 't_biphasic', 't_notched')
 
@@ -61,6 +61,7 @@ def features(measurement, representatives):
         negative = np.flatnonzero(wave[:first_r] < -threshold)
         f['q_mv'] = float(-wave[negative].min()) if len(negative) else 0.
         f['q_ms'] = float((negative[-1]-negative[0]+1)/.3) if len(negative) else 0.
+        f['q_indices'] = (negative+points['qon']).tolist()
         f['qs'] = bool(not len(positive) and f['q_mv'] > threshold)
         j = points['qoff']
         f['j_mv'] = float(np.mean(q[j-1:j+2])-qb)
@@ -81,6 +82,7 @@ def features(measurement, representatives):
 def classify(recording, measurement, representatives, *, feature_data=None, check_stability=True):
     c = context(recording); adult = c['age_years'] is not None and c['age_years'] >= 18
     amplitude_eligible = adult or c['age_years'] is None
+    adult = amplitude_eligible
     data = features(measurement, representatives) if feature_data is None else feature_data; rows = []
     metrics = measurement.get('metrics', {})
     def metric(key): return metrics.get(key, {}).get('value')
@@ -89,7 +91,7 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         rows.append(dict(id=key, label=label, status=status, criterion=criterion, reason=reason,
                          leads=list(leads), amplitude_estimated=amplitude, required_for_normal=required,
                          presentation='description' if key in DESCRIPTIONS else 'finding', limitations=[]))
-    adult_reason = 'Idade adulta não informada ou faixa pediátrica sem regras validadas.'
+    adult_reason = 'Faixa pediátrica sem regras validadas para estes limiares de adulto.'
     hr, pr, qrs, pd, qtc = (metric(k) for k in ('heart_rate','pr','qrs_duration','p_duration','qtc_f'))
     rr = np.asarray(measurement.get('alignment', {}).get('rhythm', {}).get('rr_seconds', []))
     rhythm_ok = len(rr) >= 4 and np.all((rr >= .25) & (rr <= 3))
@@ -111,10 +113,14 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
     qt_reason = ''
     if not adult: qt_reason = adult_reason
     elif qtc is None: qt_reason = metrics.get('qtc_f',{}).get('reason') or 'QTcF indisponível.'
-    elif not c['sex']: qt_reason = 'Sexo de referência não informado.'
-    add('qt_long','QTcF prolongado',qtc >= qt_limit if adult and c['sex'] and qtc is not None else None,
+
+    add('qt_long','QTcF prolongado',qtc >= qt_limit if adult and qtc is not None else None,
         'QTcF ≥450 ms (masculino) ou ≥460 ms (feminino), adulto; condições de RR/QRS da medição mantidas.',
         qt_reason)
+    if adult and qtc is not None and not c['sex']:
+        rows[-1]['limitations'].append('Sexo não informado: comparação com os limiares masculino (450 ms) e feminino (460 ms).')
+        if 450 <= qtc < 460:
+            rows[-1]['possible_context'] = 'Possível prolongamento, dependente do sexo de referência; não altera sozinho a conclusão principal.'
     valid = {l:f for l,f in data.items() if f['available']}
     six = all(l in valid for l in ('I','II','III','aVR','aVL','aVF'))
     orientation_ok = normal_signs(recording, 'deeppsp_2l') is not None
@@ -148,19 +154,30 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
     # neither regular RR nor a lone positive median P establishes sinus rhythm.
     needed=('I','II','aVR'); alignment=measurement.get('alignment',{})
     sinus=None
-    if orientation_ok and all(l in valid for l in needed) and pr is not None:
+    if all(l in valid for l in needed) and pr is not None:
         sinus=bool(valid['I']['p_mv']>.02 and valid['II']['p_mv']>.02 and valid['aVR']['p_mv']<-.02
                    and all(valid[l]['p_consistency']>=.9 and valid[l]['p_peak_dispersion_ms']<=20 for l in needed)
                    and alignment.get('accepted_beats',0)>=5 and not alignment.get('excluded')
                    and not alignment.get('unusable_segments') and not recording.gaps
                    and np.all(recording.quality[:recording.n]))
+    sinus_reasons=[]
+    for lead in needed:
+        if lead not in valid:sinus_reasons.append(lead+': P/base indisponível');continue
+        f=valid[lead]
+        if (f['p_mv']<=.02 if lead!='aVR' else f['p_mv']>=-.02):sinus_reasons.append(lead+': polaridade/amplitude de P fora do critério')
+        if f['p_consistency']<.9:sinus_reasons.append(f"{lead}: P consistente em {f['p_consistency']:.0%} dos batimentos (mínimo 90%)")
+        if f['p_peak_dispersion_ms']>20:sinus_reasons.append(f"{lead}: dispersão de P {f['p_peak_dispersion_ms']:.1f} ms (limite 20 ms)")
+    if pr is None:sinus_reasons.append('PR indisponível')
+    if alignment.get('accepted_beats',0)<5:sinus_reasons.append('Menos de cinco batimentos aceitos')
+    if alignment.get('excluded'):sinus_reasons.append(f"{len(alignment['excluded'])} batimento(s) com morfologia distinta")
+    if alignment.get('unusable_segments') or recording.gaps or not np.all(recording.quality[:recording.n]):sinus_reasons.append('Trechos sem qualidade/continuidade suficiente')
     for row in rows:
+        if c['age_years'] is None and row['id'] not in ('irregular',*DESCRIPTIONS):
+            row['limitations'].append('Idade não informada: comparação exploratória com limiares de adulto.')
         if not row['amplitude_estimated']: continue
         row['limitations'].append('Amplitude estimada pelo perfil ativo; calibração não validada.')
         if not orientation_ok:
             row['limitations'].append('Convenção elétrica não referenciada: polaridade do traçado exibido assumida para esta comparação exploratória.')
-        if c['age_years'] is None and row['presentation'] != 'description':
-            row['limitations'].append('Idade não informada: comparação exploratória com limiares de adulto.')
     if check_stability:
         from .measurement_quality import guard_rules
         guard_rules(recording,measurement,rows)
@@ -176,7 +193,9 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
     return dict(version=VERSION,status=status,summary=summary,context=c,rules=rows,features=data,
         morphology=[r for r in rows if r['presentation']=='description'],
         possibilities=[r for r in rows if r.get('possible') and r['presentation']=='finding'],
+        sinus_reasons=sinus_reasons,
+        sinus_limitations=[] if orientation_ok else ['Ritmo sinusal avaliado assumindo a polaridade exibida, sem referência validada.'],
         sinus_supported=sinus,regular=regular,rr_cv=cv,findings=findings,
         limitations=['Derivações de membros; sem precordiais.','Amplitudes estimadas pelo perfil ativo; hipóteses exploratórias.',
                      'Sem inferência de infarto, eletrólitos, aumento de câmaras ou bloqueio de ramo específico.'],
-        missing=[r['label'] for r in missing]+([] if sinus else ['Critérios de ritmo sinusal não estabelecidos.']))
+        missing=[r['label'] for r in missing]+([] if sinus else ['Critérios de ritmo sinusal não estabelecidos: '+'; '.join(sinus_reasons)+'.']))
