@@ -71,7 +71,7 @@ def check_automatic():
     assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
         assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
-        assert measured['method_version']=='global-median-4'
+        assert measured['method_version']=='global-median-5'
         assert measured['pipeline']['detector_source']=='displayed_smoothed_medians'
         median=measured['median'];original_median=np.asarray(median['unsmoothed_values_mv'])
         assert max(abs(np.asarray(median['values_mv'])-original_median)) <= .015*np.ptp(original_median)+1e-12

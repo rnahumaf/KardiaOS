@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.11.0 exploratória)
+## Análise automática local (0.13.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -95,7 +95,10 @@ batimentos alinhados. Uma medida indisponível não esconde a curva. Não há re
 à delineação de batimentos isolados nem participação do CompactSegmenter082 nas
 medidas operacionais. QTc usa Fridericia, com condições explícitas de aplicação.
 
-O painel inicial mostra classificação, FC, PR, QRS, QT/QTc e duração de P.
+O painel inicial mostra classificação e uma tabela lateral compacta com FC, PR,
+QRS, QT/QTc e duração de P, acima dos controles de aquisição. Quando o QTcF
+está indisponível, o motivo mostra a condição que falhou e, quando aplicável,
+a variabilidade dos RR observada e o limite usado pelo programa.
 Idade e sexo opcionais ficam no painel e atualizam a análise automaticamente.
 A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.
@@ -154,3 +157,5 @@ Licença MIT para o código KardiaOS; dependências mantêm suas próprias licen
 A correção de reprodução, a distinção entre template e QT e a rastreabilidade de P estão em [playback-and-markers-081.md](docs/playback-and-markers-081.md).
 
 [Qualidade técnica por marco e estabilidade entre medianas (0.12.0)](docs/measurement-quality-0120.md).
+
+[Refinamento do fim de P, motivos do QTcF e tabela lateral (0.13.0)](docs/p-offset-and-sidebar-0130.md).

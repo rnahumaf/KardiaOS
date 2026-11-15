@@ -100,9 +100,13 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         add(key,label,bool(condition) if adult and value is not None else None,criteria,
             adult_reason if not adult else 'Limites necessários indisponíveis.' if value is None else '')
     qt_limit = 450 if c['sex']=='male' else 460
+    qt_reason = ''
+    if not adult: qt_reason = adult_reason
+    elif qtc is None: qt_reason = metrics.get('qtc_f',{}).get('reason') or 'QTcF indisponível.'
+    elif not c['sex']: qt_reason = 'Sexo de referência não informado.'
     add('qt_long','QTcF prolongado',qtc >= qt_limit if adult and c['sex'] and qtc is not None else None,
         'QTcF ≥450 ms (masculino) ou ≥460 ms (feminino), adulto; condições de RR/QRS da medição mantidas.',
-        adult_reason if not adult else 'Sexo de referência ou QTcF indisponível.' if not c['sex'] or qtc is None else '')
+        qt_reason)
     valid = {l:f for l,f in data.items() if f['available']}
     six = all(l in valid for l in ('I','II','III','aVR','aVL','aVF'))
     orientation_ok = normal_signs(recording, 'deeppsp_2l') is not None

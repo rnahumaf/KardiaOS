@@ -16,9 +16,30 @@ from .signal import six_leads
 from .measurement_engine import empty
 
 FS = 300
-VERSION = 'global-median-4'
+VERSION = 'global-median-5'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
+
+
+def qtc_blockers(qt, qrs, rr):
+    """Explain the existing QTc eligibility policy without relaxing its gates."""
+    rr = np.asarray(rr, dtype=float)
+    reasons = []
+    if qt is None: reasons.append('QT indisponível: limites globais insuficientes.')
+    if qrs is None: reasons.append('Duração do QRS indisponível.')
+    elif qrs >= 120:
+        reasons.append(f'QRS de {qrs:g} ms, fora da condição de QRS menor que 120 ms.')
+    if len(rr) < 4: reasons.append(f'RR insuficientes: {len(rr)} intervalos; mínimo de 4.')
+    if len(rr):
+        median = float(np.median(rr)); mean = float(np.mean(rr))
+        if not .6 <= median <= 1.5:
+            reasons.append(f'RR mediano de {median*1000:.1f} ms, fora da faixa de 600–1500 ms.')
+        cv = float(np.std(rr)/mean) if mean > 0 else float('inf')
+        if not np.isfinite(cv): reasons.append('Variabilidade dos RR não calculável.')
+        elif cv > .1:
+            value = f'{cv*100:.2f}'.replace('.', ',')
+            reasons.append(f'Variabilidade dos RR de {value}%, acima do limite de 10%.')
+    return reasons
 
 
 def joint_quality(raw):
@@ -259,10 +280,11 @@ def analyze(recording, cancelled=lambda: False):
             metric['reason'] = 'Limites globais insuficientes nas medianas; curva preservada.'
     qt = metrics['qt']['value']; qtc = metrics['qtc_f']; qrs = metrics['qrs_duration']['value']
     qtc.update(method=METHOD, boundary_source='global_medians', formula='QTcF = QT(ms) / RR(s)^(1/3)')
-    if qt is not None and qrs is not None and len(rr) >= 4 and .6 <= median_rr <= 1.5 and rr.std() / rr.mean() <= .1 and qrs < 120:
+    blockers = qtc_blockers(qt, qrs, rr)
+    if not blockers:
         qtc.update(value=round(qt / np.cbrt(median_rr), 1), status='estimated', reason='')
     else:
-        qtc['reason'] = 'QT/QRS global indisponível ou RR original fora das condições da correção (variabilidade, frequência ou QRS ≥120 ms).'
+        qtc['reason'] = ' '.join(blockers)
     result.update(status='experimental' if representatives else 'unavailable', global_fiducials=dict(r=pre, **points),
                   boundary_provenance=sources, local_candidates=local,
                   rr_variability=float(rr.std() / rr.mean()) if len(rr) else None)

@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QTimer, QSettings
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QSlider,
-    QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QStyle, QScrollArea)
+    QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QStyle, QScrollArea, QTableWidget, QHeaderView, QAbstractItemView)
 from .ble import Stream
 from .signal import FS, MV_PER_COUNT, FilterConfig, Processor, contact_ok, automatic_config
 from .recording import Recording, save_recording, load_recording
@@ -71,7 +71,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.12.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.13.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -146,12 +146,6 @@ class Window(QMainWindow):
         self.analysis_findings=label('',wrap=True);self.analysis_findings.hide();panel.addWidget(self.analysis_findings)
         self.analysis_pending=label('', 'muted', True);self.analysis_pending.hide();panel.addWidget(self.analysis_pending)
         self.analysis_quality=label('', 'muted', True);self.analysis_quality.setStyleSheet('color:#855b11;');self.analysis_quality.hide();panel.addWidget(self.analysis_quality)
-        metric_row=QHBoxLayout();self.measure_values={}
-        for key,title in [('heart_rate','FC'),('pr','PR'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF'),('p_duration','Duração de P')]:
-            column=QVBoxLayout();column.setSpacing(2);column.addWidget(label(title,'muted'))
-            value=label('—');value.setStyleSheet('font-size:17px;font-weight:600');column.addWidget(value)
-            self.measure_values[key]=value;metric_row.addLayout(column,1)
-        panel.addLayout(metric_row)
         context_row=QHBoxLayout();context_row.addWidget(label('Idade','muted'))
         self.age=QSpinBox();self.age.setRange(-1,120);self.age.setSpecialValueText('Não informada');self.age.setValue(-1);self.age.setSuffix(' anos');self.age.setKeyboardTracking(False);context_row.addWidget(self.age)
         context_row.addWidget(label('Sexo de referência','muted'));self.sex=QComboBox()
@@ -253,7 +247,23 @@ class Window(QMainWindow):
         side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         side_scroll.setFixedWidth(260)
         side_scroll.setWidget(side)
-        body.addWidget(side_scroll)
+        right=QWidget();right.setFixedWidth(260);right_column=QVBoxLayout(right);right_column.setContentsMargins(0,0,0,0);right_column.setSpacing(8)
+        right_column.addWidget(label('MEDIDAS', 'section'))
+        self.measure_table=QTableWidget(6,2);self.measure_table.setAccessibleName('Medidas do ECG')
+        self.measure_table.horizontalHeader().hide();self.measure_table.verticalHeader().hide()
+        self.measure_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.measure_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.measure_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.measure_table.setFocusPolicy(Qt.FocusPolicy.NoFocus);self.measure_table.setFrameShape(QFrame.Shape.NoFrame)
+        self.measure_table.setStyleSheet('QTableWidget {background:white;gridline-color:#dfe7e3;}')
+        self.measure_values={}
+        for row,(key,title) in enumerate([('heart_rate','FC'),('pr','PR'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF'),('p_duration','Duração de P')]):
+            name=label(title);name.setContentsMargins(8,0,0,0);self.measure_table.setCellWidget(row,0,name)
+            value=label('—');value.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter);value.setContentsMargins(0,0,8,0)
+            value.setStyleSheet('font-size:14px;font-weight:600');self.measure_table.setCellWidget(row,1,value);self.measure_values[key]=value
+            self.measure_table.setRowHeight(row,28)
+        self.measure_table.setFixedHeight(170);right_column.addWidget(self.measure_table)
+        self.qtc_unavailable=label('', 'muted', True);self.qtc_unavailable.hide();right_column.addWidget(self.qtc_unavailable)
+        right_column.addWidget(side_scroll,1);body.addWidget(right)
         outer.addLayout(body, 1)
         self.footer = label("KardiaMobile 6L  /  M2 · 300 Hz nominais  /  Sem envio de dados", "muted")
         outer.addWidget(self.footer)
@@ -658,7 +668,11 @@ class Window(QMainWindow):
             alert=warning(metric)
             if alert:widget.setText(widget.text()+' *')
             widget.setToolTip(metric.get('reason') or detail(metric))
-            widget.setStyleSheet('font-size:17px;font-weight:600;'+('color:#855b11;' if alert else ''))
+            widget.setStyleSheet('font-size:14px;font-weight:600;'+('color:#855b11;' if alert else ''))
+        qtc=metrics.get('qtc_f',{})
+        reason=qtc.get('reason','') if qtc.get('value') is None else ''
+        self.qtc_unavailable.setText('QTcF indisponível: '+reason if reason else '')
+        self.qtc_unavailable.setVisible(bool(reason))
         window=(result or {}).get('report_window')
         self.measure_panel.setToolTip(f"Trecho do laudo: {window['offset_seconds']:g}–{window['offset_seconds']+window['duration_seconds']:g} s. Medidas da gravação completa." if window else '')
 

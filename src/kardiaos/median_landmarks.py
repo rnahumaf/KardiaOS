@@ -65,6 +65,45 @@ def qrs_candidate(x, anchor):
                 sensitivity_samples=int(sensitivity)), ''
 
 
+def p_offset(x, peak, hi, sign, noise, tangent):
+    """Require a reproducible falling-flank/baseline transition on the median.
+
+    A drifting baseline can make a stable tangent cross too late. Fit the
+    observed baseline slope instead of assuming it is zero. The two estimates
+    must agree before their midpoint is used; no fixed offset from R is used.
+    """
+    start = peak + 2
+    estimates = []
+    for margin in (0, 3):
+        y = x[start:hi-margin]
+        if len(y) < 12:
+            return None, 'Fim P sem extensão suficiente para separar flanco e base.', {}
+        z = np.arange(len(y), dtype=float)
+        straight = np.column_stack([np.ones(len(z)), z])
+        line = np.linalg.lstsq(straight, y, rcond=None)[0]
+        line_error = float(np.mean((straight@line-y)**2))
+        best = None
+        for k in range(5, len(y)-5):
+            design = np.column_stack([straight, np.maximum(0, z-k)])
+            coef = np.linalg.lstsq(design, y, rcond=None)[0]
+            fall, base = coef[1], coef[1]+coef[2]
+            if sign*fall >= -max(noise/3, 1e-12) or abs(base) > .4*abs(fall):
+                continue
+            error = float(np.mean((design@coef-y)**2))
+            if best is None or error < best[0]: best = (error, start+k)
+        if best is None or best[0] > .65*line_error:
+            return None, 'Fim P sem transição sustentada do flanco para a linha de base.', {}
+        estimates.append(best[1])
+    evidence = dict(tangent_index=int(tangent), transition_indices=estimates,
+                    method='tangent and falling-flank/baseline change point')
+    if abs(estimates[0]-estimates[1]) > 3:
+        return None, 'Fim P instável ao variar a janela da linha de base.', evidence
+    transition = float(np.mean(estimates))
+    if abs(transition-tangent) > 6:
+        return None, 'Tangente e retorno de P à base divergem mais de 20 ms.', evidence
+    return int(np.rint((tangent+transition)/2)), '', evidence
+
+
 def wave_candidate(x, lo, hi, kind, noise, qamp):
     """Wave feet on the visible curve; no Gaussian widening of the waveform."""
     if hi-lo < 15:
@@ -108,7 +147,10 @@ def wave_candidate(x, lo, hi, kind, noise, qamp):
         on, off = np.rint(np.mean(fits, axis=0)).astype(int)
         if not lo < on < lo+peak < off < hi or not .04 <= (off-on)/FS <= .20:
             return {}, 'Tangentes P fora da onda ou da faixa técnica.'
-        return dict(on=int(on), off=int(off), quality=prominence/max(noise, 1e-10),
+        refined, why, evidence = p_offset(x, lo+peak, hi, sign, noise, off)
+        return dict(on=int(on), off=int(refined if refined is not None else off),
+                    offset_supported=refined is not None, offset_reason=why, offset_evidence=evidence,
+                    quality=prominence/max(noise, 1e-10),
                     sensitivity_samples=int(np.ceil(np.max(abs(np.asarray(fits[0])-fits[1]))))), ''
     first, last = min(v[0] for v in lobes), max(v[0] for v in lobes)
     limits = []
@@ -158,11 +200,17 @@ def combine_candidates(candidates, wave, on, off):
             del selected[lead]
     points, sources = {}, {}
     for key in (on, off):
-        values = {lead: int(v[key]) for lead, v in selected.items()}
+        boundary_rejected = dict(rejected)
+        values = {}
+        for lead, value in selected.items():
+            if wave == 'p' and key == off and not value.get('offset_supported', True):
+                boundary_rejected[lead] = value['offset_reason']
+            else: values[lead] = int(value[key])
+        if not values: continue
         target = min(values.values()) if key == on else max(values.values())
         points[key] = target
         sources[key] = dict(index=target, supporting_leads=[lead for lead, v in values.items() if v == target],
-                            candidates=values, rejected_candidates=rejected,
+                            candidates=values, rejected_candidates=boundary_rejected,
                             quality={lead: float(v['quality']) for lead, v in available.items()})
     return points, sources
 
@@ -211,7 +259,10 @@ def delineate_medians(medians, anchor, rr):
         lo = max(1, anchor-105, anchor-int(.45*rr*FS))
         p, why = wave_candidate(x, lo, points['qon']-6, 'p', noise, amp)
         c['reasons']['p'] = why
-        if p: c['p'] = dict(pon=p['on'], poff=p['off'], quality=p['quality'])
+        if p:
+            c['p'] = dict(pon=p['on'], poff=p['off'], quality=p['quality'],
+                          offset_supported=p['offset_supported'], offset_reason=p['offset_reason'],
+                          offset_evidence=p['offset_evidence'])
         hi = min(len(x)-4, anchor+180, anchor+int(rr*FS)-36)
         t, why = wave_candidate(x, points['qoff']+9, hi, 't', noise, amp)
         c['reasons']['t'] = why
