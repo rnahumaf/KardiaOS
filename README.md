@@ -152,3 +152,5 @@ O executável não é assinado digitalmente nesta versão.
 Licença MIT para o código KardiaOS; dependências mantêm suas próprias licenças.
 
 A correção de reprodução, a distinção entre template e QT e a rastreabilidade de P estão em [playback-and-markers-081.md](docs/playback-and-markers-081.md).
+
+[Qualidade técnica por marco e estabilidade entre medianas (0.12.0)](docs/measurement-quality-0120.md).

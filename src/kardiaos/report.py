@@ -121,6 +121,7 @@ def measurement_line(analysis):
     for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS')]:
         metric=item.get('metrics',{}).get(key,{})
         value=metric.get('value');text=f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'
+        if metric.get('quality',{}).get('reason'):text+=' *'
         if key!='heart_rate':
             text+=' (global)' if item.get('global_intervals') else (f' (D{item["lead"]})' if item.get('lead') else '')
         parts.append(name+': '+text)
@@ -197,5 +198,8 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
         _text(c,'Hipóteses dos modelos',x0,y0+16,7,True)
         for index,item in enumerate(analysis['hypotheses'][:3]):_text(c,item['label']+' · '+item['model'],x0,y0+12-index*4,7.5)
     profile='perfil empírico' if empirical(recording) else profile_label(recording)
+    from .measurement_quality import alerts
+    if analysis and alerts(analysis.get('measurements',{})):
+        _text(c,'* Estabilidade técnica limitada em algumas medidas; motivos e faixas nos detalhes da análise.',x0,y0+21,6.5)
     _text(c,'Pesquisa exploratória | '+profile+' | A4 a 100% | medianas: QRS 0,5–80 Hz; P/T 0,5–30 Hz | gravação completa preservada',x0,y0+1,6.5)
     c.showPage();c.save();return stream.getvalue()

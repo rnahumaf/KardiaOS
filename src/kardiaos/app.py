@@ -71,7 +71,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.11.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.12.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -145,6 +145,7 @@ class Window(QMainWindow):
         self.analysis_summary.setStyleSheet('font-size:15px;font-weight:600');panel.addWidget(self.analysis_summary)
         self.analysis_findings=label('',wrap=True);self.analysis_findings.hide();panel.addWidget(self.analysis_findings)
         self.analysis_pending=label('', 'muted', True);self.analysis_pending.hide();panel.addWidget(self.analysis_pending)
+        self.analysis_quality=label('', 'muted', True);self.analysis_quality.setStyleSheet('color:#855b11;');self.analysis_quality.hide();panel.addWidget(self.analysis_quality)
         metric_row=QHBoxLayout();self.measure_values={}
         for key,title in [('heart_rate','FC'),('pr','PR'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF'),('p_duration','Duração de P')]:
             column=QVBoxLayout();column.setSpacing(2);column.addWidget(label(title,'muted'))
@@ -646,10 +647,18 @@ class Window(QMainWindow):
         text='Pendências: '+' '.join(pending[:2])+ (f' Mais {len(pending)-2} nos detalhes.' if len(pending)>2 else '') if pending else ''
         self.analysis_pending.setText(text);self.analysis_pending.setToolTip('\n'.join(pending));self.analysis_pending.setVisible(bool(text))
         metrics=(result or {}).get('measurements',{}).get('metrics',{})
+        from .measurement_quality import alerts
+        messages=alerts((result or {}).get('measurements',{}))
+        self.analysis_quality.setText('Revisar: '+'; '.join(messages[:2])+(' · demais alertas nos detalhes.' if len(messages)>2 else '') if messages else '')
+        self.analysis_quality.setToolTip('\n'.join(messages));self.analysis_quality.setVisible(bool(messages))
         for key,widget in self.measure_values.items():
             metric=metrics.get(key,{});value=metric.get('value')
             widget.setText(f"{value:g} {metric.get('unit','')}" if value is not None else '—')
-            widget.setToolTip(metric.get('reason') or ('Estimativa automática; baixa confiança.' if metric.get('status')=='exploratory_low_confidence' else ''))
+            from .measurement_quality import warning,detail
+            alert=warning(metric)
+            if alert:widget.setText(widget.text()+' *')
+            widget.setToolTip(metric.get('reason') or detail(metric))
+            widget.setStyleSheet('font-size:17px;font-weight:600;'+('color:#855b11;' if alert else ''))
         window=(result or {}).get('report_window')
         self.measure_panel.setToolTip(f"Trecho do laudo: {window['offset_seconds']:g}–{window['offset_seconds']+window['duration_seconds']:g} s. Medidas da gravação completa." if window else '')
 

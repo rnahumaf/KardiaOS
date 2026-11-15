@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 from .median_landmarks import mad
 from .orientation import normal_signs
 
-VERSION = 'limb-rules-2'
+VERSION = 'limb-rules-3'
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
 
 
@@ -72,9 +72,9 @@ def features(measurement, representatives):
     return result
 
 
-def classify(recording, measurement, representatives):
+def classify(recording, measurement, representatives, *, feature_data=None, check_stability=True):
     c = context(recording); adult = c['age_years'] is not None and c['age_years'] >= 18
-    data = features(measurement, representatives); rows = []
+    data = features(measurement, representatives) if feature_data is None else feature_data; rows = []
     metrics = measurement.get('metrics', {})
     def metric(key): return metrics.get(key, {}).get('value')
     def add(key, label, detected, criterion, reason='', leads=(), amplitude=False, required=True):
@@ -144,6 +144,9 @@ def classify(recording, measurement, representatives):
         for row in rows:
             if row['amplitude_estimated']:
                 row.update(status='unavailable',reason='Convenção elétrica não referenciada; selecione explicitamente o perfil empírico para usar seus pressupostos.')
+    if check_stability:
+        from .measurement_quality import guard_rules
+        guard_rules(recording,measurement,rows)
     findings=[r for r in rows if r['status']=='detected']
     missing=[r for r in rows if r['required_for_normal'] and r['status']=='unavailable']
     if not findings and sinus and regular:

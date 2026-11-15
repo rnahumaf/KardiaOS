@@ -55,12 +55,12 @@ def check_automatic():
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     began=time.perf_counter()
     result=automatic_analysis(record)
-    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-2'
+    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-3'
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
     assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
     assert len(result['representative'])==6
     assert not result['clinical_validation'] and result['exploratory_policy']['confidence_calibrated'] is False
-    assert result['qtc_label']=='QTc global: indisponível' or 'Fridericia; baixa confiança)' in result['qtc_label']
+    assert result['qtc_label']=='QTc global: indisponível' or 'Fridericia)' in result['qtc_label']
     np.testing.assert_array_equal(before,record.raw[:record.n]);cache_analysis(record,result)
     dialog=AutomaticAnalysisDialog(record,autostart=False);dialog.update_result(dict(kind='measurements',value=result['measurements']));dialog.on_result(result)
     from PySide6.QtWidgets import QApplication
@@ -71,12 +71,12 @@ def check_automatic():
     assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
         assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
-        assert measured['method_version']=='global-median-3'
+        assert measured['method_version']=='global-median-4'
         assert measured['pipeline']['detector_source']=='displayed_smoothed_medians'
         median=measured['median'];original_median=np.asarray(median['unsmoothed_values_mv'])
         assert max(abs(np.asarray(median['values_mv'])-original_median)) <= .015*np.ptp(original_median)+1e-12
         assert measured['global_fiducials']==result['measurements']['global_fiducials']
-        if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='exploratory_low_confidence'
+        if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='estimated'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
     di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
     preview=PrintPreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()

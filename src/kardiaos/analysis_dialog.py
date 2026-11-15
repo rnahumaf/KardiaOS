@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt,QThread,Signal,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QWidget,
     QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,QComboBox,QScrollArea,QFrame)
 from .automatic_analysis import automatic_analysis,analysis_key,cache_analysis,cached_analysis
+from .measurement_quality import warning as quality_warning, detail as quality_detail
 from .orientation import evidence_state
 from .timing_plot import TimingPlot
 from .processing import profile_label,profile_info,snapshot
@@ -45,6 +46,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.findings_label=label('');nb.addWidget(self.findings_label)
         self.pending_label=label('');nb.addWidget(self.pending_label)
         self.qtc_summary=label('');self.qtc_summary.setObjectName('muted');nb.addWidget(self.qtc_summary)
+        self.quality_summary=label('');self.quality_summary.setStyleSheet('color:#855b11;');self.quality_summary.hide();nb.addWidget(self.quality_summary)
         note=label('Análise automática exploratória · amplitudes estimadas · derivações de membros, sem precordiais.');note.setObjectName('muted');nb.addWidget(note)
         self.criteria_toggle=QPushButton('Mostrar critérios técnicos');self.criteria_toggle.setCheckable(True);nb.addWidget(self.criteria_toggle,0,Qt.AlignmentFlag.AlignLeft)
         self.technical_body=QWidget();tb=QVBoxLayout(self.technical_body);tb.setContentsMargins(0,0,0,0)
@@ -106,6 +108,7 @@ class AutomaticAnalysisDialog(QDialog):
         if self.busy() or self.closing:return
         self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
         self.classification_summary.setText('Atualizando a análise…');self.findings_label.clear();self.pending_label.clear();self.feature_table.setRowCount(0)
+        self.quality_summary.clear();self.quality_summary.hide();self.qtc_summary.clear()
         self.measurements_by_lead=[];self.lead_selector.clear();self.criteria_table.setRowCount(0);self.beat_selector.clear();self.timing_plot.set_measurement(None)
         self.evidence_label.setText(profile_label(self.recording))
         cached=cached_analysis(self.recording) if self.recording is not None and not force else None
@@ -137,7 +140,8 @@ class AutomaticAnalysisDialog(QDialog):
         metrics=list(v['metrics'].values());self.measure_table.setRowCount(len(metrics))
         for row,m in enumerate(metrics):
             method=m.get('reason') or m.get('formula') or m.get('method') or f"Mediana de {m.get('accepted_beats',0)}/{m.get('candidate_beats',0)} batimentos delimitados."
-            values=[m['name'],(f"{m['value']:g} {m['unit']}"+(' (baixa confiança)' if m.get('status')=='exploratory_low_confidence' else '')) if m['value'] is not None else 'Indisponível',method]
+            if quality_detail(m):method+=' · '+quality_detail(m)
+            values=[m['name'],(f"{m['value']:g} {m['unit']}"+(' · revisar' if quality_warning(m) else '')) if m['value'] is not None else 'Indisponível',method]
             for col,text in enumerate(values):
                 item=QTableWidgetItem(text);item.setToolTip(text);self.measure_table.setItem(row,col,item)
         self.measure_table.resizeRowsToContents();self.timing_plot.set_measurement(v)
@@ -159,6 +163,9 @@ class AutomaticAnalysisDialog(QDialog):
         if result.get('source_key') and result['source_key']!=analysis_key(self.recording):return
         self.result=result;self.export_button.setEnabled(True)
         self.qtc_summary.setText(result.get('qtc_label','QTc: erro na estimativa'))
+        from .measurement_quality import alerts
+        messages=alerts(result.get('measurements',{}))
+        self.quality_summary.setText('Revisar medidas\n'+'\n'.join(messages) if messages else '');self.quality_summary.setVisible(bool(messages))
         self.score_table.setRowCount(0)
         classification=result.get('classification',{})
         self.classification_summary.setText(classification.get('summary',result.get('reason') or 'Análise automática inconclusiva'))
@@ -171,7 +178,7 @@ class AutomaticAnalysisDialog(QDialog):
         if classification.get('sinus_supported'):self.add_row(['Ritmo compatível com origem sinusal','P positiva em I/II, negativa em aVR e associação P–QRS consistente nos batimentos alinhados. Estimativa automática.'])
         if classification.get('regular') is not None:self.add_row(['Ritmo regular' if classification['regular'] else 'Ritmo irregular',f"Variação dos RR originais: {classification['rr_cv']*100:.1f}%."])
         for item in sorted(classification.get('rules',[]),key=lambda v:{'detected':0,'unavailable':1,'not_detected':2}[v['status']]):
-            prefix={'detected':'','not_detected':'Não detectado: ','unavailable':'Indisponível: '}[item['status']]
+            prefix='Indeterminado: ' if item.get('technical_status')=='indeterminate' else {'detected':'','not_detected':'Não detectado: ','unavailable':'Indisponível: '}[item['status']]
             detail=item['reason'] or item['criterion']
             if item.get('leads'):detail+=' Derivações: '+', '.join(item['leads'])+'.'
             if item.get('amplitude_estimated'):detail+=' Amplitude estimada.'

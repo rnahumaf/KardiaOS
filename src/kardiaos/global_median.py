@@ -16,7 +16,7 @@ from .signal import six_leads
 from .measurement_engine import empty
 
 FS = 300
-VERSION = 'global-median-3'
+VERSION = 'global-median-4'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -221,7 +221,7 @@ def analyze(recording, cancelled=lambda: False):
     if len(rr) >= 2 and np.all((rr >= .25) & (rr <= 3)):
         metrics['heart_rate'].update(value=round(60 / median_rr, 1), status='experimental', reason='',
                                      method=rhythm['method'], rr_median_seconds=median_rr)
-    representatives = {}
+    representatives = {}; stacks = {}
     points, sources, local = {}, {}, {}
     if accepted:
         stacks = {}
@@ -254,18 +254,20 @@ def analyze(recording, cancelled=lambda: False):
         metric = metrics[key]
         metric.update(method=METHOD, boundary_source='global_medians', accepted_beats=len(accepted), candidate_beats=len(candidates))
         if on in points and off in points and points[off] > points[on]:
-            metric.update(value=round((points[off] - points[on]) / FS * 1000, 1), status='exploratory_low_confidence', reason='')
+            metric.update(value=round((points[off] - points[on]) / FS * 1000, 1), status='estimated', reason='')
         else:
             metric['reason'] = 'Limites globais insuficientes nas medianas; curva preservada.'
     qt = metrics['qt']['value']; qtc = metrics['qtc_f']; qrs = metrics['qrs_duration']['value']
     qtc.update(method=METHOD, boundary_source='global_medians', formula='QTcF = QT(ms) / RR(s)^(1/3)')
     if qt is not None and qrs is not None and len(rr) >= 4 and .6 <= median_rr <= 1.5 and rr.std() / rr.mean() <= .1 and qrs < 120:
-        qtc.update(value=round(qt / np.cbrt(median_rr), 1), status='exploratory_low_confidence', reason='')
+        qtc.update(value=round(qt / np.cbrt(median_rr), 1), status='estimated', reason='')
     else:
         qtc['reason'] = 'QT/QRS global indisponível ou RR original fora das condições da correção (variabilidade, frequência ou QRS ≥120 ms).'
     result.update(status='experimental' if representatives else 'unavailable', global_fiducials=dict(r=pre, **points),
                   boundary_provenance=sources, local_candidates=local,
                   rr_variability=float(rr.std() / rr.mean()) if len(rr) else None)
+    from .measurement_quality import assess,attach_metrics
+    attach_metrics(result,assess(stacks,names,pre,median_rr,points,sources,factor,cancelled))
     result['descriptions'] = [dict(id='qrs_width', status='descriptive' if qrs is not None else 'unavailable',
         text=f'QRS global: {qrs:g} ms.' if qrs is not None else 'QRS global indisponível.',
         criterion='Início mais precoce e fim mais tardio sustentados pelas medianas das derivações disponíveis; estimativa exploratória, sem classificação diagnóstica.')]
@@ -282,6 +284,8 @@ def analyze(recording, cancelled=lambda: False):
         label = {'pon':'início P','poff':'fim P','qon':'início QRS','qoff':'fim QRS','ton':'início T','toff':'fim T'}[key]
         result['descriptions'].append(dict(id='boundary_' + key, status='descriptive', text=f'{label}: {(item["index"] - pre) / FS * 1000:.1f} ms em relação ao QRS.',
             criterion='Sustentado por ' + ', '.join(item['supporting_leads']) + '; aplicado a todas as medianas.'))
+    for key,quality in result['technical_quality']['boundaries'].items():
+        if quality.get('reason'):result['descriptions'].append(dict(id='quality_'+key,status='descriptive',text=quality['reason'],criterion='Estabilidade técnica nas medianas de subconjuntos; não representa acurácia clínica.'))
     for lead in names:
         item = deepcopy({key: val for key, val in result.items() if key != 'additional_leads'})
         item.update(lead=lead, median=representatives.get(lead))
@@ -289,5 +293,6 @@ def analyze(recording, cancelled=lambda: False):
             result['median'] = item['median']
         else:
             result['additional_leads'].append(item)
-    qtc_label = f'QTc: {qtc["value"]:g} ms (global; Fridericia; baixa confiança)' if qtc['value'] is not None else 'QTc global: indisponível'
+    qtc_label = f'QTc: {qtc["value"]:g} ms (global; Fridericia)' if qtc['value'] is not None else 'QTc global: indisponível'
+    if qtc.get('quality',{}).get('reason'):qtc_label+=' · revisar medida'
     return result, representatives, audit, qtc_label

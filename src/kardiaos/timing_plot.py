@@ -87,10 +87,16 @@ class TimingPlot(QWidget):
         p.drawText(QRectF(48,6,self.width()-65,24),f"{name} · {median['group_size']} batimentos alinhados · tempo relativo ao QRS (ms)")
         p.drawText(QRectF(48,28,self.width()-65,24),'Medianas suavizadas: QRS (escura), P/T (verde) · limites globais')
         points=m.get('global_fiducials',{})
+        flagged=False
+        for quality in m.get('technical_quality',{}).get('boundaries',{}).values():
+            if quality['status']!='review':continue
+            flagged=True
+            left,right=quality['range_samples']
+            p.fillRect(QRectF(px(left),area.top(),max(2,px(right)-px(left)),area.height()),QColor(190,130,30,35))
         for on,off,color,name in [('pon','poff','#996800','P'),('qon','qoff','#295eab','QRS'),('ton','toff','#187963','T')]:
             indices=[points[key] for key in (on,off) if key in points]
             p.setPen(QPen(QColor(color),1.3,Qt.PenStyle.DashLine))
             for index in indices:p.drawLine(QPointF(px(index),area.top()),QPointF(px(index),area.bottom()))
             if indices:p.drawText(QRectF(px(np.mean(indices))-30,area.top()-20,60,20),Qt.AlignmentFlag.AlignCenter,name)
         p.setPen(QColor('#526a6e'))
-        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Marcos calculados nas medianas suavizadas exibidas. Estimativa exploratória.')
+        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Faixas âmbar: variação dos marcos a revisar entre subconjuntos.' if flagged else 'Marcos calculados nas medianas suavizadas exibidas. Estimativa exploratória.')

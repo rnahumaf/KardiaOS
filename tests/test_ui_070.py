@@ -46,6 +46,6 @@ def test_print_scope_and_qt_gate_separate_leads():
 
 def test_method_policy_and_version_invalidate_old_cache():
     r=signal_record();a=automatic_analysis(r,infer=fake_infer)
-    assert a['measurements']['method_version']=='global-median-3'
+    assert a['measurements']['method_version']=='global-median-4'
     assert a['measurements']['global_intervals'] and 'qualification' not in a['measurements']
     assert a['source_key']==analysis_key(r)
