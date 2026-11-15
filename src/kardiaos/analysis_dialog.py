@@ -32,17 +32,19 @@ class AutomaticThread(QThread):
 class AutomaticAnalysisDialog(QDialog):
     def __init__(self,recording,parent=None,autostart=True):
         super().__init__(parent);self.recording=recording;self.thread=None;self.result=None;self.closing=False
+        self.setObjectName('analysisDetails')
         self.setWindowTitle('KardiaOS — detalhes da análise');self.resize(1120,760);self.setMinimumSize(850,650)
-        box=QVBoxLayout(self);box.setContentsMargins(20,18,20,16);box.setSpacing(10)
-        title=label('Detalhes da análise');title.setStyleSheet('font-size:18px;font-weight:600');box.addWidget(title)
-        self.evidence_label=label(profile_label(recording));self.evidence_label.setObjectName('muted');box.addWidget(self.evidence_label)
+        box=QVBoxLayout(self);box.setContentsMargins(18,16,18,14);box.setSpacing(8)
+        heading=QHBoxLayout();heading.setSpacing(18)
+        title=label('Detalhes da análise');title.setStyleSheet('font-size:18px;font-weight:600');heading.addWidget(title)
+        self.evidence_label=label(profile_label(recording));self.evidence_label.setObjectName('muted');self.evidence_label.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter);heading.addWidget(self.evidence_label,1);box.addLayout(heading)
         self.tabs=QTabWidget();box.addWidget(self.tabs,1)
         def page(title):
             scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame)
-            widget=QWidget();layout=QVBoxLayout(widget);layout.setContentsMargins(10,12,10,10);layout.setSpacing(10)
+            widget=QWidget();layout=QVBoxLayout(widget);layout.setContentsMargins(4,12,4,8);layout.setSpacing(8)
             scroll.setWidget(widget);self.tabs.addTab(scroll,title);return layout
         nb=page('Resumo');self.network_tab=0
-        self.classification_summary=label('Aguardando análise.');self.classification_summary.setStyleSheet('font-size:17px;font-weight:600');nb.addWidget(self.classification_summary)
+        self.classification_summary=label('Aguardando análise.');self.classification_summary.setStyleSheet('font-size:16px;font-weight:600');nb.addWidget(self.classification_summary)
         self.findings_label=label('');nb.addWidget(self.findings_label)
         self.pending_label=label('');nb.addWidget(self.pending_label)
         self.qtc_summary=label('');self.qtc_summary.setObjectName('muted');nb.addWidget(self.qtc_summary)
@@ -64,22 +66,28 @@ class AutomaticAnalysisDialog(QDialog):
         self.feature_table=QTableWidget(0,7);self.feature_table.setHorizontalHeaderLabels(['Derivação','P (mV)','Q (mV)','Q (ms)','T (mV)','J (mV)','ST+60 (mV)'])
         self.feature_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);mb.addWidget(self.feature_table)
         mb.addWidget(label('QTcF: Fridericia, QT(ms) / RR(s)^(1/3). Valores automáticos, sem revisão clínica.'));mb.addStretch()
-        limits=QWidget();lb=QVBoxLayout(limits);lb.addWidget(label('Medianas e batimentos alinhados. Limites globais compartilhados entre derivações.'))
-        selection=QHBoxLayout();selection.addWidget(label('Derivação:'));self.lead_selector=QComboBox();selection.addWidget(self.lead_selector);selection.addStretch();lb.addLayout(selection)
+        limits=QWidget();lb=QVBoxLayout(limits);lb.setContentsMargins(4,12,4,8);lb.setSpacing(8)
+        selection=QHBoxLayout();selection.setSpacing(8);caption=label('Derivação');selection.addWidget(caption)
+        self.lead_selector=QComboBox();self.lead_selector.setAccessibleName('Derivação');self.lead_selector.setFixedWidth(108);self.lead_selector.setEnabled(False);caption.setBuddy(self.lead_selector);selection.addWidget(self.lead_selector)
+        hint=label('Medianas alinhadas · limites globais compartilhados');hint.setObjectName('muted');selection.addSpacing(8);selection.addWidget(hint,1);lb.addLayout(selection)
         self.measurements_by_lead=[];self.lead_selector.currentIndexChanged.connect(self.show_measurement)
-        self.beat_selector=QComboBox();lb.addWidget(self.beat_selector)
+        self.beat_selector=QComboBox();self.beat_selector.setAccessibleName('Batimento');self.beat_selector.setEnabled(False);self.beat_selector.hide();lb.addWidget(self.beat_selector)
         self.timing_plot=TimingPlot(recording);lb.addWidget(self.timing_plot,1)
         self.beat_selector.currentIndexChanged.connect(self.timing_plot.set_beat);self.tabs.addTab(limits,'Curvas e marcos')
         for table in (self.measure_table,self.score_table,self.criteria_table,self.feature_table):
             table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);table.verticalHeader().hide();table.setWordWrap(True)
-            table.setStyleSheet('QTableWidget {background:white;gridline-color:#e0e7e4;} QHeaderView::section {background:#eef3f1;padding:6px;border:0;text-align:left;}')
+            table.setAlternatingRowColors(True);table.setShowGrid(False);table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            table.setFrameShape(QFrame.Shape.NoFrame)
+            table.setStyleSheet('QTableWidget {background:white;alternate-background-color:#f1f6f3;selection-background-color:#dcece3;selection-color:#174d3f;} QTableWidget::item {padding:4px;border-bottom:1px solid #e1e9e4;} QHeaderView::section {background:#e7efea;color:#345848;font-weight:600;padding:5px;border:0;text-align:left;}')
         self.status=label('Pronto.');self.status.setObjectName('muted');box.addWidget(self.status)
         row=QHBoxLayout();details=QPushButton('Proveniência');details.clicked.connect(self.details);row.addWidget(details)
         self.reference_button=QPushButton('Referência');self.reference_button.clicked.connect(self.reference);row.addWidget(self.reference_button)
         self.neural_button=QPushButton('Análise neural…');self.neural_button.clicked.connect(self.neural_analysis);row.addWidget(self.neural_button)
         row.addStretch();self.run_button=QPushButton('Reavaliar');self.cancel_button=QPushButton('Interromper');self.export_button=QPushButton('Exportar JSON');close=QPushButton('Fechar')
+        row.setSpacing(6);self.run_button.setObjectName('primary');self.cancel_button.setObjectName('interrupt')
         for button in (self.run_button,self.cancel_button,self.export_button,close):row.addWidget(button)
         box.addLayout(row);self.cancel_button.setVisible(False);self.export_button.setEnabled(False)
+        for button in self.findChildren(QPushButton):button.setAutoDefault(False)
         self.run_button.clicked.connect(lambda:self.start(force=True));self.cancel_button.clicked.connect(self.cancel);self.export_button.clicked.connect(self.export);close.clicked.connect(self.reject)
         self.tabs.currentChanged.connect(lambda _:QTimer.singleShot(0,self.fit_tables))
         if autostart:QTimer.singleShot(0,self.start)
@@ -110,6 +118,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.classification_summary.setText('Atualizando a análise…');self.findings_label.clear();self.pending_label.clear();self.feature_table.setRowCount(0)
         self.quality_summary.clear();self.quality_summary.hide();self.qtc_summary.clear()
         self.measurements_by_lead=[];self.lead_selector.clear();self.criteria_table.setRowCount(0);self.beat_selector.clear();self.timing_plot.set_measurement(None)
+        self.lead_selector.setEnabled(False);self.beat_selector.setEnabled(False)
         self.evidence_label.setText(profile_label(self.recording))
         cached=cached_analysis(self.recording) if self.recording is not None and not force else None
         if cached:
@@ -129,7 +138,7 @@ class AutomaticAnalysisDialog(QDialog):
             self.measurements_by_lead=[v]+v.get('additional_leads',[])
             self.lead_selector.blockSignals(True);self.lead_selector.clear()
             self.lead_selector.addItems([('D'+item['lead'] if item['lead'] in ('I','II','III') else item['lead']) for item in self.measurements_by_lead])
-            self.lead_selector.blockSignals(False);self.show_measurement(0)
+            self.lead_selector.blockSignals(False);self.lead_selector.setEnabled(bool(self.measurements_by_lead));self.show_measurement(0)
         # Network outputs are published once, after exact-window validation and merging.
     def show_measurement(self,index):
         if not 0<=index<len(self.measurements_by_lead):return
@@ -148,6 +157,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.beat_selector.blockSignals(True);self.beat_selector.clear()
         self.beat_selector.addItems([f"Batimento {i+1} · amostra {p['r']}" for i,p in enumerate(v.get('fiducials',[]))])
         self.beat_selector.blockSignals(False)
+        self.beat_selector.setEnabled(self.beat_selector.count()>0)
         self.beat_selector.setVisible(not v.get('global_intervals'))
         items=v.get('descriptions',[]);self.criteria_table.setRowCount(len(items))
         for row,item in enumerate(items):

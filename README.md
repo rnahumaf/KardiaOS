@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.13.2 exploratória)
+## Análise automática local (0.13.3 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -103,6 +103,9 @@ Os controles laterais usam uma linha por configuração, com seletores discretos
 botões destacados e foco visível. O cronômetro mostra as estatísticas de aquisição
 em sua dica; o estado da captura e a comparação com o bruto também oferecem
 informações auxiliares por dica, sem ocupar a lateral com parágrafos fixos.
+Os detalhes da análise seguem o mesmo padrão visual: abas com seleção explícita,
+ações compactas, critérios expansíveis com estado destacado e tabelas com linhas
+alternadas. Os seletores ficam desabilitados enquanto não há dados disponíveis.
 Idade e sexo opcionais ficam no painel e atualizam a análise automaticamente.
 A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.

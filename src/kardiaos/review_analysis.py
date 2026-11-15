@@ -24,7 +24,7 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
     began=time.perf_counter()
     r=recording;key=analysis_key(r) if r is not None else None
     request=scope(r,offset,duration)
-    result=dict(status='running',mode='normal',version='0.13.2',run_id=uuid.uuid4().hex,source_key=key,scope=request,
+    result=dict(status='running',mode='normal',version='0.13.3',run_id=uuid.uuid4().hex,source_key=key,scope=request,
         evidence=evidence_state(r),operational_profile=profile_info(r),clinical_validation=False,
         measurements=empty('Análise em preparação.'),scenarios=[],unavailable=[],representative={},hypotheses=[],
         qtc_label='QTc: erro na estimativa',selected_lead=None,report_window=None,

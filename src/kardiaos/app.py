@@ -52,22 +52,33 @@ QDialog { background: #f7f9f7; }
 QScrollBar:vertical { background: #edf2ef; width: 9px; margin: 0; }
 QScrollBar::handle:vertical { background: #b1c5bc; border-radius: 4px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-QWidget#shell QPushButton { background: #e5eeea; border-color: #9eb8ae; font-weight: 600; }
-QWidget#shell QPushButton:hover { background: #d5e6de; border-color: #387b68; }
-QWidget#shell QPushButton:pressed { background: #bfd9cc; }
-QWidget#shell QPushButton:focus { border: 2px solid #287a65; padding: 7px 13px; }
-QWidget#shell QPushButton:disabled { background: #f0f3f1; border-color: #dfe6e2; color: #a3b0aa; }
-QWidget#shell QPushButton#primary { background: #176b5d; border-color: #176b5d; color: white; }
-QWidget#shell QPushButton#primary:hover { background: #125749; }
-QWidget#shell QPushButton#primary:disabled { background: #9bb9b0; border-color: #9bb9b0; }
-QWidget#controls QComboBox { background: #eaf0ed; border: none; border-bottom: 1px solid #b2c5bc; border-radius: 3px; padding: 3px 6px 3px 6px; min-height: 20px; }
-QWidget#controls QComboBox:hover { background: #dfeae4; border-bottom-color: #43816d; }
-QWidget#controls QComboBox:focus { background: #e1eee7; border-bottom: 2px solid #176b5d; padding-bottom: 2px; }
-QWidget#controls QComboBox:disabled { background: #f0f3f1; color: #8a9891; border-bottom-color: #dae2dd; }
-QWidget#controls QComboBox::drop-down { border: none; width: 22px; }
-QWidget#controls QComboBox::down-arrow { image: url(ASSET_ROOT/chevron-down.svg); width: 14px; height: 14px; }
-QWidget#controls QComboBox QAbstractItemView { background: white; border: 1px solid #a5bdb2; selection-background-color: #dcece3; selection-color: #174d3f; padding: 3px; }
+QWidget#shell QPushButton, QDialog#analysisDetails QPushButton { background: #e5eeea; border-color: #9eb8ae; font-weight: 600; }
+QWidget#shell QPushButton:hover, QDialog#analysisDetails QPushButton:hover { background: #d5e6de; border-color: #387b68; }
+QWidget#shell QPushButton:pressed, QDialog#analysisDetails QPushButton:pressed { background: #bfd9cc; }
+QWidget#shell QPushButton:focus, QDialog#analysisDetails QPushButton:focus { border: 2px solid #287a65; padding: 7px 13px; }
+QWidget#shell QPushButton:disabled, QDialog#analysisDetails QPushButton:disabled { background: #f0f3f1; border-color: #dfe6e2; color: #a3b0aa; }
+QWidget#shell QPushButton#primary, QDialog#analysisDetails QPushButton#primary { background: #176b5d; border-color: #176b5d; color: white; }
+QWidget#shell QPushButton#primary:hover, QDialog#analysisDetails QPushButton#primary:hover { background: #125749; }
+QWidget#shell QPushButton#primary:disabled, QDialog#analysisDetails QPushButton#primary:disabled { background: #9bb9b0; border-color: #9bb9b0; }
+QWidget#controls QComboBox, QDialog#analysisDetails QComboBox { background: #eaf0ed; border: none; border-bottom: 1px solid #b2c5bc; border-radius: 3px; padding: 3px 6px 3px 6px; min-height: 20px; }
+QWidget#controls QComboBox:hover, QDialog#analysisDetails QComboBox:hover { background: #dfeae4; border-bottom-color: #43816d; }
+QWidget#controls QComboBox:focus, QDialog#analysisDetails QComboBox:focus { background: #e1eee7; border-bottom: 2px solid #176b5d; padding-bottom: 2px; }
+QWidget#controls QComboBox:disabled, QDialog#analysisDetails QComboBox:disabled { background: #f0f3f1; color: #8a9891; border-bottom-color: #dae2dd; }
+QWidget#controls QComboBox::drop-down, QDialog#analysisDetails QComboBox::drop-down { border: none; width: 22px; }
+QWidget#controls QComboBox::down-arrow, QDialog#analysisDetails QComboBox::down-arrow { image: url(ASSET_ROOT/chevron-down.svg); width: 14px; height: 14px; }
+QWidget#controls QComboBox QAbstractItemView, QDialog#analysisDetails QComboBox QAbstractItemView { background: white; border: 1px solid #a5bdb2; selection-background-color: #dcece3; selection-color: #174d3f; padding: 3px; }
 QWidget#controls QCheckBox { min-height: 23px; }
+QDialog#analysisDetails QPushButton { padding: 5px 10px; min-height: 20px; }
+QDialog#analysisDetails QPushButton:focus { padding: 4px 9px; }
+QDialog#analysisDetails QPushButton:checked { background: #176b5d; color: white; border-color: #176b5d; }
+QDialog#analysisDetails QPushButton:checked:hover { background: #125749; }
+QDialog#analysisDetails QPushButton#interrupt { background: #fbede6; color: #833d22; border-color: #b98771; }
+QDialog#analysisDetails QPushButton#interrupt:hover { background: #f4dacf; }
+QDialog#analysisDetails QTabWidget::pane { border: none; border-top: 1px solid #c6d6cd; }
+QDialog#analysisDetails QTabBar::tab { background: #eaf0ed; color: #405b4e; border: none; border-bottom: 3px solid transparent; padding: 6px 12px; margin-right: 4px; }
+QDialog#analysisDetails QTabBar::tab:hover { background: #dfeae4; }
+QDialog#analysisDetails QTabBar::tab:selected { color: #124f40; background: #dcece3; border-bottom-color: #176b5d; font-weight: 600; }
+QDialog#analysisDetails QTabBar::tab:focus { border-bottom-color: #176b5d; }
 """
 STYLE = STYLE.replace('ASSET_ROOT', (Path(__file__).parent / 'assets').as_posix())
 
@@ -95,7 +106,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.13.2" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.13.3" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)

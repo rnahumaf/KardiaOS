@@ -87,12 +87,18 @@ def test_pdf_export_is_direct_and_preview_is_print_only(tmp_path,monkeypatch):
 
 def test_details_summary_measures_curves_and_expandable_criteria(tmp_path):
     app=QApplication.instance();w=window(tmp_path);r=signal_record();attach(w,r)
-    d=AutomaticAnalysisDialog(r,w,autostart=False);d.resize(850,650);d.show();d.start()
+    d=AutomaticAnalysisDialog(r,w,autostart=False);d.resize(850,650);d.show()
+    assert not d.lead_selector.isEnabled() and not d.export_button.isEnabled()
+    d.start()
     wait(app,lambda:d.result is not None and not d.busy())
     assert d.tabs.currentIndex()==0 and not d.technical_body.isVisible()
+    assert d.lead_selector.isEnabled() and d.export_button.isEnabled()
     assert d.pending_label.isVisible() and 'Pendências' in d.pending_label.text()
     assert w.paper.analysis is d.result and w.measure_values['heart_rate'].text()=='60 bpm'
-    d.criteria_toggle.click();app.processEvents();assert d.technical_body.isVisible()
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import Qt
+    d.criteria_toggle.setFocus();QTest.keyClick(d.criteria_toggle,Qt.Key.Key_Space);app.processEvents()
+    assert d.technical_body.isVisible() and d.criteria_toggle.isChecked()
     d.tabs.setCurrentIndex(1);app.processEvents();assert d.measure_table.rowCount()==6 and d.feature_table.rowCount()==6
     d.tabs.setCurrentIndex(2);d.lead_selector.setCurrentIndex(5);app.processEvents()
     assert d.timing_plot.isVisible() and d.lead_selector.currentIndex()==5
