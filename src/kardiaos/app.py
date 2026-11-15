@@ -35,8 +35,15 @@ QPushButton#primary:hover { background: #125749; }
 QPushButton#primary:disabled { background: #9bb9b0; border-color: #9bb9b0; }
 QComboBox, QSpinBox, QDoubleSpinBox { border: 1px solid #d6e0dc; border-radius: 5px; background: white; padding: 6px 8px; min-height: 20px; color: #29423e; }
 QComboBox:disabled { color: #87988f; background: #eff3f0; }
-QCheckBox { spacing: 8px; color: #405a52; }
-QCheckBox::indicator { width: 15px; height: 15px; }
+QCheckBox { spacing: 8px; color: #29483b; border: 1px solid transparent; border-radius: 4px; padding: 2px; }
+QCheckBox:focus { border-color: #176b5d; background: #e7f1eb; }
+QCheckBox:disabled { color: #78877f; }
+QCheckBox::indicator { width: 17px; height: 17px; border: 2px solid #587565; border-radius: 3px; background: white; }
+QCheckBox::indicator:unchecked:hover { border-color: #176b5d; background: #e6f0ea; }
+QCheckBox::indicator:checked { border-color: #176b5d; background: #176b5d; image: url(ASSET_ROOT/check.svg); }
+QCheckBox::indicator:checked:hover { border-color: #104d42; background: #104d42; }
+QCheckBox::indicator:unchecked:disabled { border-color: #9ca9a2; background: #edf0ee; }
+QCheckBox::indicator:checked:disabled { border-color: #7e8c84; background: #7e8c84; image: url(ASSET_ROOT/check.svg); }
 QSlider::groove:horizontal { height: 4px; background: #dce5df; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #277969; border-radius: 2px; }
 QSlider::handle:horizontal { background: #176b5d; width: 12px; margin: -4px 0; border-radius: 6px; }
@@ -88,7 +95,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.13.1" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.13.2" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)

@@ -123,7 +123,7 @@ def analysis_key(recording,technical_mode=False, *, offset=0.,duration=None):
     """Signal, contact, evidence, active processing, trained heads and requested scope."""
     import hashlib
     metadata=dict(meta=recording.meta,profile=profile_info(recording),scope=scope(recording,offset,duration),
-                  mode=technical_mode,catalog=catalog(),version='0.13.1-global-median-5')
+                  mode=technical_mode,catalog=catalog(),version='0.13.2-global-median-5')
     digest=hashlib.sha256(json.dumps(metadata,sort_keys=True).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())

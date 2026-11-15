@@ -7,6 +7,9 @@ Fonte: https://github.com/lucide-icons/lucide/blob/main/icons/activity.svg
 A seta dos seletores usa Chevron Down da mesma coleção e licença, com cor adaptada.
 Fonte: https://github.com/lucide-icons/lucide/blob/main/icons/chevron-down.svg
 
+A marca dos checkboxes usa Check da mesma coleção e licença, com cor e espessura adaptadas.
+Fonte: https://github.com/lucide-icons/lucide/blob/main/icons/check.svg
+
 O protocolo de interoperabilidade M2 foi implementado a partir das evidências de
 ShaneBreazeale/kardia-rs, disponível sob MIT ou Apache-2.0:
 https://github.com/ShaneBreazeale/kardia-rs
