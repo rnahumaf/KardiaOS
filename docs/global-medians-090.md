@@ -1,5 +1,8 @@
 # Medianas sincronizadas e intervalos globais — 0.9.0
 
+> A versão 0.9.1 acrescenta suavização das medianas e revisa a seleção dos
+> marcos, conforme [median-landmarks-091.md](median-landmarks-091.md).
+
 A revisão usa a gravação completa para formar medianas sincronizadas. A janela
 de 10 segundos continua definindo o trecho do relatório e a entrada contínua de
 ECGFounder e DeepPSP. Alterar essa janela não altera as medianas nem as medidas.

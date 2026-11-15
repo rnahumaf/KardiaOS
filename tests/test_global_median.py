@@ -22,7 +22,9 @@ def test_all_leads_share_beats_shifts_and_global_markers_even_when_avf_flat():
         assert rep['source_centers'] == reps['I']['source_centers']
         assert rep['translation_samples'] == reps['I']['translation_samples']
         assert rep['markers'] == reps['I']['markers']
-        np.testing.assert_allclose(rep['values_mv'], np.median(rep['aligned_beats_mv'], axis=0))
+        np.testing.assert_allclose(rep['unsmoothed_values_mv'], np.median(rep['aligned_beats_mv'], axis=0))
+        original = np.asarray(rep['unsmoothed_values_mv'])
+        assert max(abs(rep['values_mv'] - original)) <= .015 * np.ptp(original) + 1e-12
     np.testing.assert_array_equal(reps['aVF']['values_mv'], 0)
     assert 'aVF' not in m['boundary_provenance']['qon']['supporting_leads']
     assert m['metrics']['qrs_duration']['value'] == pytest.approx(80, abs=25)

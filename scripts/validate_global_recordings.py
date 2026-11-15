@@ -37,8 +37,11 @@ def main():
             assert rep['source_centers'] == first['source_centers'], 'Unshared beat centers'
             assert rep['translation_samples'] == first['translation_samples'], 'Unshared translations'
             assert rep['markers'] == first['markers'], 'Unshared global boundaries'
-            np.testing.assert_allclose(rep['values_mv'], np.median(rep['aligned_beats_mv'], axis=0))
+            np.testing.assert_allclose(rep['unsmoothed_values_mv'], np.median(rep['aligned_beats_mv'], axis=0))
+            original_median = np.asarray(rep['unsmoothed_values_mv'])
+            assert max(abs(np.asarray(rep['values_mv']) - original_median)) <= .015 * np.ptp(original_median) + 1e-12
         m = result['measurements']
+        assert m['pipeline']['detector_source'] == 'displayed_smoothed_medians'
         assert m['global_intervals'] and not m['fiducials'], 'Individual delineation leaked'
         assert m['duration_seconds'] > 10, 'Measurements restricted to report window'
         assert not result['qt']['neural_segmenter_used'], 'Old QT path used'

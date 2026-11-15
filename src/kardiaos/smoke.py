@@ -66,6 +66,10 @@ def check_automatic():
     assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
         assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
+        assert measured['method_version']=='global-median-2'
+        assert measured['pipeline']['detector_source']=='displayed_smoothed_medians'
+        median=measured['median'];original_median=np.asarray(median['unsmoothed_values_mv'])
+        assert max(abs(np.asarray(median['values_mv'])-original_median)) <= .015*np.ptp(original_median)+1e-12
         assert measured['global_fiducials']==result['measurements']['global_fiducials']
         if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='exploratory_low_confidence'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10

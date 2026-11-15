@@ -81,14 +81,14 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.9.0 exploratória)
+## Análise automática local (0.9.1 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
 claramente distinta são excluídos do conjunto nas seis derivações, com motivo
 visível. Eles continuam na sequência usada para frequência cardíaca e RR.
 
-As medianas por derivação sustentam os limites globais de P, QRS e T e as
+As medianas por derivação recebem suavização limitada e sustentam os limites globais de P, QRS e T e as
 medidas P, QRS, PR, QT e QTc. Os mesmos marcadores aparecem nas curvas, inclusive
 quando outra derivação sustenta o limite. A aba Limites mostra as medianas e os
 batimentos alinhados. Uma medida indisponível não esconde a curva. Não há retorno
@@ -106,6 +106,7 @@ A nova abordagem não herda a qualificação histórica do motor temporal nem de
 validação clínica. Os valores permanecem exploratórios; amplitude e polaridade
 não recebem validação automática. No papel não se imprime QT bruto.
 [Método, exclusões e limites da versão 0.9.0](docs/global-medians-090.md).
+[Correção dos marcos e suavização na versão 0.9.1](docs/median-landmarks-091.md).
 [Validação histórica do motor temporal](docs/measurement-validation.md).
 
 ## Desenvolvimento

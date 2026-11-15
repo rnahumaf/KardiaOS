@@ -9,13 +9,14 @@ import numpy as np
 from scipy.ndimage import gaussian_filter1d, uniform_filter1d
 from scipy.signal import butter, sosfiltfilt, find_peaks, welch
 from . import delineation as dsp
-from .qt_fiducials import endpoint, t_filter
+from .qt_fiducials import t_filter
+from .median_landmarks import smooth_median, delineate_medians
 from .processing import scale_and_signs
 from .signal import six_leads
 from .measurement_engine import empty
 
 FS = 300
-VERSION = 'global-median-1'
+VERSION = 'global-median-2'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -148,66 +149,7 @@ def align_beats(candidates):
 
 
 def global_boundaries(medians, anchor, rr):
-    """Delineate medians only, then earliest supported onset / latest offset.
-
-    Low contrast in one projection does not suppress a boundary found elsewhere.
-    Provenance retains every contributing lead and every local rejection.
-    """
-    candidates = {}
-    noises = {}
-    for lead, data in medians.items():
-        q = data['qrs']; residual = q - gaussian_filter1d(q, 1)
-        noise = max(float(np.median(abs(residual - np.median(residual))) * 1.4826), 1e-8)
-        amp = float(np.ptp(q[max(0, anchor - 45):anchor + 46]))
-        noises[lead] = (noise, amp)
-        bounds, why = dsp.slope_bounds(q, anchor - 45, anchor + 46, anchor, 'qrs', noise, amp)
-        entry = dict(reasons={'qrs': why})
-        if bounds and amp >= 8 * noise:
-            entry.update(qon=bounds[0], qoff=bounds[1])
-        elif bounds:
-            entry['reasons']['qrs'] = 'low_contrast'
-        candidates[lead] = entry
-    points = {}
-    sources = {}
-
-    def merge(keys):
-        for key in keys:
-            values = [(lead, v[key]) for lead, v in candidates.items() if key in v]
-            if values:
-                target = min(v for _, v in values) if key.endswith('on') else max(v for _, v in values)
-                points[key] = int(target)
-                sources[key] = dict(index=int(target), supporting_leads=[lead for lead, v in values if v == target],
-                                    candidates={lead: int(v) for lead, v in values})
-    merge(('qon', 'qoff'))
-    if 'qon' in points and 'qoff' in points:
-        for lead, data in medians.items():
-            noise, amp = noises[lead]; x = data['pt']; c = candidates[lead]
-            lo = max(1, anchor - 105, anchor - int(.45 * rr * FS))
-            hi = points['qon'] - 6
-            p, why = dsp.slope_bounds(x, lo, hi, anchor, 'p', noise, amp)
-            c['reasons']['p'] = why
-            if p:
-                c.update(pon=p[0], poff=p[1])
-            t_hi = min(len(x) - 4, anchor + 180, anchor + int(rr * FS) - 36)
-            t, why = dsp.slope_bounds(x, points['qoff'] + 9, t_hi, anchor, 't', noise, amp)
-            if t:
-                c['ton'] = t[0]
-            beat = dict(r=anchor, qon=points['qon'], qoff=points['qoff'])
-            end, why = endpoint(x, np.gradient(x), beat, anchor + int(rr * FS), noise, amp, 'tangent')
-            c['reasons']['t'] = why
-            if end is not None:
-                c['toff'] = end
-        merge(('pon', 'poff', 'ton', 'toff'))
-    # Contradictory global boundaries invalidate only the dependent wave.
-    for on, off, low, high in [('pon', 'poff', .04, .20), ('qon', 'qoff', .04, .25), ('ton', 'toff', .04, .40)]:
-        if on in points and off in points and not low <= (points[off] - points[on]) / FS <= high:
-            for key in (on, off):
-                points.pop(key, None)
-                sources.pop(key, None)
-    if 'poff' in points and 'qon' in points and points['poff'] >= points['qon']:
-        for key in ('pon', 'poff'):
-            points.pop(key, None); sources.pop(key, None)
-    return points, sources, candidates
+    return delineate_medians(medians, anchor, rr)
 
 
 def analyze(recording, cancelled=lambda: False):
@@ -269,7 +211,8 @@ def analyze(recording, cancelled=lambda: False):
                   offset_seconds=0., duration_seconds=float((r.meta.get('end') or r.last_time) - r.meta['start']),
                   detected_peaks=peaks_all, fiducials=[], candidate_beats=len(candidates), beats=len(accepted),
                   pipeline=dict(id=VERSION, source='aligned_medians_only', sample_rate_hz=FS, highpass_hz=.5,
-                                lowpass_hz=80, pt_lowpass_hz=30, phase='zero', neural_endpoints=False),
+                                lowpass_hz=80, pt_lowpass_hz=30, phase='zero', neural_endpoints=False,
+                                median_smoothing='bounded Savitzky-Golay 7/4', detector_source='displayed_smoothed_medians'),
                   notes=['Intervalos globais das derivações de membros disponíveis; sem precordiais.',
                          'FC e RR usam a sequência original completa; limites usam somente medianas.'],
                   alignment=audit, additional_leads=[])
@@ -286,10 +229,16 @@ def analyze(recording, cancelled=lambda: False):
             stacks[kind] = np.stack([c[kind][c['p'] + c['shift'] - pre:c['p'] + c['shift'] + post + 1] for c in accepted])
         medians = {lead: {kind: np.median(stacks[kind][:, :, ch], axis=0) for kind in stacks}
                    for ch, lead in enumerate(names)}
+        smoothing = {}
+        unsmoothed = {lead: medians[lead]['qrs'].copy() for lead in names}
+        for lead in names:
+            smoothing[lead] = {}
+            for kind in ('qrs', 'pt'):
+                medians[lead][kind], smoothing[lead][kind] = smooth_median(medians[lead][kind])
         if len(accepted) >= 3 and median_rr:
             points, sources, local = global_boundaries(medians, pre, median_rr)
         for ch, lead in enumerate(names):
-            representatives[lead] = dict(values_mv=medians[lead]['qrs'] * factor, raw_values_mv=medians[lead]['raw'] * factor,
+            representatives[lead] = dict(unsmoothed_values_mv=unsmoothed[lead]*factor, postprocessing=smoothing[lead], values_mv=medians[lead]['qrs'] * factor, raw_values_mv=medians[lead]['raw'] * factor,
                 pt_values_mv=medians[lead]['pt'] * factor, aligned_beats_mv=stacks['qrs'][:, :, ch] * factor,
                 time_seconds=(np.arange(pre + post + 1) - pre) / FS, r_index=pre,
                 markers=[dict(kind=key, index=value, time_seconds=(value - pre) / FS) for key, value in points.items()],
@@ -297,9 +246,9 @@ def analyze(recording, cancelled=lambda: False):
                 source_first_sample=result['first_sample'], source_last_sample_exclusive=result['last_sample_exclusive'],
                 source_centers=audit['source_centers'], source_beat_indices=list(range(len(accepted))),
                 original_peaks=audit['original_peaks'], translation_samples=audit['translation_samples'],
-                median_operation='pointwise; shared integer translation; no amplitude normalization or temporal warp',
+                median_operation='pointwise; shared integer translation; bounded post-smoothing; no amplitude normalization or temporal warp',
                 visual_eligible=True, measurement_eligible=bool(points), clinical_confidence=False,
-                template_measurement_pipeline='QRS 0.5–80 Hz; P/T 0.5–30 Hz; zero phase',
+                template_measurement_pipeline='QRS 0.5–80 Hz; P/T 0.5–30 Hz; zero phase; bounded SG 7/4 after median',
                 measurement_reasons=[] if points else ['Limites globais insuficientes; mediana preservada.'])
     for key, on, off in [('p_duration', 'pon', 'poff'), ('qrs_duration', 'qon', 'qoff'), ('qt', 'qon', 'toff'), ('pr', 'pon', 'qon')]:
         metric = metrics[key]

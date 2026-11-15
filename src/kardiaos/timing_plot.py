@@ -85,7 +85,7 @@ class TimingPlot(QWidget):
         p.setPen(QColor('#526a6e'))
         name='D'+m['lead'] if m['lead'] in ('I','II','III') else m['lead']
         p.drawText(QRectF(48,6,self.width()-65,24),f"{name} · {median['group_size']} batimentos alinhados · tempo relativo ao QRS (ms)")
-        p.drawText(QRectF(48,28,self.width()-65,24),'Mediana QRS (escura) · mediana P/T (verde) · limites globais')
+        p.drawText(QRectF(48,28,self.width()-65,24),'Medianas suavizadas: QRS (escura), P/T (verde) · limites globais')
         points=m.get('global_fiducials',{})
         for on,off,color,name in [('pon','poff','#996800','P'),('qon','qoff','#295eab','QRS'),('ton','toff','#187963','T')]:
             indices=[points[key] for key in (on,off) if key in points]
@@ -93,4 +93,4 @@ class TimingPlot(QWidget):
             for index in indices:p.drawLine(QPointF(px(index),area.top()),QPointF(px(index),area.bottom()))
             if indices:p.drawText(QRectF(px(np.mean(indices))-30,area.top()-20,60,20),Qt.AlignmentFlag.AlignCenter,name)
         p.setPen(QColor('#526a6e'))
-        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Fase zero: QRS 0,5–80 Hz; P/T 0,5–30 Hz. Medidas exploratórias.')
+        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Marcos calculados nas medianas suavizadas exibidas. Estimativa exploratória.')
