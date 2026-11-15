@@ -104,6 +104,34 @@ def p_offset(x, peak, hi, sign, noise, tangent):
     return int(np.rint((tangent+transition)/2)), '', evidence
 
 
+def p_onset_supported(x, onset, peak, sign, noise):
+    """Check that an isolated tangent meets a sustained departure from baseline."""
+    departures = []
+    indices = np.arange(len(x))
+    for width, gap in ((14, 3), (19, 5)):
+        before = indices[max(1, onset-gap-width):onset-gap]
+        if len(before) < 9:
+            return False
+        center = np.median(before)
+        slope, level = np.polyfit(before-center, x[before], 1)
+        residual = x[before] - (level + (before-center)*slope)
+        if abs(slope)*np.ptp(before) < 2*mad(residual):
+            slope, level = 0., np.median(x[before])
+            residual = x[before] - level
+        excursion = sign*(x - (level + (indices-center)*slope))
+        if excursion[peak] <= 0:
+            return False
+        floor = max(.055*excursion[peak], 2.5*mad(residual), 2*noise)
+        # Follow the flank from the peak, allowing one weak sample in four.
+        for k in range(peak-3, max(onset-5, 2)-1, -1):
+            if np.count_nonzero(excursion[k:k+4] > floor) < 3:
+                departures.append(k+1)
+                break
+        else:
+            return False
+    return bool(abs(departures[0]-departures[1]) <= 3 and abs(np.mean(departures)-onset) <= 6)
+
+
 def wave_candidate(x, lo, hi, kind, noise, qamp):
     """Wave feet on the visible curve; no Gaussian widening of the waveform."""
     if hi-lo < 15:
@@ -149,6 +177,7 @@ def wave_candidate(x, lo, hi, kind, noise, qamp):
             return {}, 'Tangentes P fora da onda ou da faixa técnica.'
         refined, why, evidence = p_offset(x, lo+peak, hi, sign, noise, off)
         return dict(on=int(on), off=int(refined if refined is not None else off),
+                    onset_supported=p_onset_supported(x, on, lo+peak, sign, noise),
                     offset_supported=refined is not None, offset_reason=why, offset_evidence=evidence,
                     quality=prominence/max(noise, 1e-10),
                     sensitivity_samples=int(np.ceil(np.max(abs(np.asarray(fits[0])-fits[1]))))), ''
@@ -207,11 +236,22 @@ def combine_candidates(candidates, wave, on, off):
                 boundary_rejected[lead] = value['offset_reason']
             else: values[lead] = int(value[key])
         if not values: continue
+        rejected_onsets = []
+        if wave == 'p' and key == on and len(values) >= 3:
+            ordered = sorted(values, key=values.get)
+            first, second, third = ordered[:3]
+            if (values[second]-values[first] > 6 and values[third]-values[second] <= 6
+                    and not selected[first].get('onset_supported', True)):
+                reason = 'Início isolado sem deflexão sustentada até a onda P.'
+                rejected_onsets.append(dict(lead=first, index=values.pop(first), reason=reason))
+                boundary_rejected[first] = reason
         target = min(values.values()) if key == on else max(values.values())
         points[key] = target
         sources[key] = dict(index=target, supporting_leads=[lead for lead, v in values.items() if v == target],
                             candidates=values, rejected_candidates=boundary_rejected,
                             quality={lead: float(v['quality']) for lead, v in available.items()})
+        if rejected_onsets:
+            sources[key]['rejected_onsets'] = rejected_onsets
     return points, sources
 
 
@@ -261,6 +301,7 @@ def delineate_medians(medians, anchor, rr):
         c['reasons']['p'] = why
         if p:
             c['p'] = dict(pon=p['on'], poff=p['off'], quality=p['quality'],
+                          onset_supported=p['onset_supported'],
                           offset_supported=p['offset_supported'], offset_reason=p['offset_reason'],
                           offset_evidence=p['offset_evidence'])
         hi = min(len(x)-4, anchor+180, anchor+int(rr*FS)-36)

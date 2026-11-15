@@ -6,7 +6,7 @@ Observed ranges are sensitivity envelopes, never clinical confidence intervals.
 import numpy as np
 from .median_landmarks import smooth_median, delineate_medians
 
-VERSION = 'median-stability-3'
+VERSION = 'median-stability-4'
 MIN_BEATS = 10
 LIMIT_SAMPLES = dict(pon=6, poff=6, qon=3, qoff=3, ton=9, toff=9)
 LABELS = dict(pon='Início de P', poff='Fim de P', qon='Início do QRS',
@@ -21,6 +21,10 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
     n=len(stacks.get('qrs',[]))
     result=dict(version=VERSION,accepted_beats=n,minimum_beats=MIN_BEATS,
                 subsets=[],boundaries={},replicates=[],clinical_validation=False)
+    def onset_reviews(provenance, name):
+        return [dict(v, source=name, time_ms=round((v['index']-anchor)/.3, 1))
+                for v in provenance.get('pon', {}).get('rejected_onsets', [])]
+    rejected_onsets = onset_reviews(sources, 'mediana completa')
     groups=[] if n<MIN_BEATS else [('primeira metade',np.arange(n//2)),
         ('segunda metade',np.arange(n//2,n)),('alternados pares',np.arange(0,n,2)),
         ('alternados ímpares',np.arange(1,n,2))]
@@ -28,7 +32,8 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
         if cancelled():raise Cancelled()
         medians={lead:{kind:smooth_median(np.median(stacks[kind][indices,:,ch],axis=0))[0]
                       for kind in ('qrs','pt')} for ch,lead in enumerate(names)}
-        p,_,_=delineate_medians(medians,anchor,rr)
+        p,provenance,_=delineate_medians(medians,anchor,rr)
+        rejected_onsets.extend(onset_reviews(provenance, name))
         values={key:round((p[off]-p[on])/.3,1) if on in p and off in p else None
                 for key,(on,off) in INTERVALS.items()}
         values['qtc_f']=round(values['qt']/np.cbrt(rr),1) if values['qt'] is not None and values['qrs_duration'] is not None and values['qrs_duration']<120 else None
@@ -55,11 +60,15 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
             if len(detected)!=len(groups):reasons.append(f'{label} não reproduzido em {len(groups)-len(detected)}/{len(groups)} subconjuntos')
             if span>LIMIT_SAMPLES[key]:reasons.append(f'{label} instável: variação de {span/.3:.1f} ms')
             if contrast<12:reasons.append(f'{label} com baixo contraste')
+        if key == 'pon' and rejected_onsets:
+            locations = ', '.join(f"{v['lead']} a {v['time_ms']:g} ms ({v['source']})" for v in rejected_onsets)
+            reasons.append('Início de P instável: candidatos isolados descartados em ' + locations)
         result['boundaries'][key]=dict(status='unverified' if not groups else 'review' if reasons else 'stable',
             reason='; '.join(reasons),contrast=round(contrast,2),detected_subsets=len(detected),
             total_subsets=len(groups),range_ms=[round((v-anchor)/.3,1) for v in (min(positions),max(positions))],
             spread_ms=round(span/.3,1),limit_ms=round(LIMIT_SAMPLES[key]/.3,1),
             range_samples=[min(positions),max(positions)])
+    result['p_onset_reviews'] = rejected_onsets
     return result
 
 

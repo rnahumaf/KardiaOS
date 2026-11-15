@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.15.0 exploratória)
+## Análise automática local (0.16.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -131,6 +131,7 @@ de subconjuntos sobrepõem suas curvas à mediana completa, com seletor de orige
 Para frequência e regularidade, o gráfico de RR mostra a gravação inteira; clicar
 em um RR localiza o trecho de 10 segundos no traçado contínuo.
 [Método e apresentação das evidências na versão 0.15.0](docs/evidence-0150.md).
+[Revisão dos limites de P e do ritmo na versão 0.16.0](docs/rhythm-0160.md).
 [Critérios exploratórios e descrições da versão 0.14.0](docs/exploratory-rules-0140.md).
 
 O botão **Análise neural…** abre a avaliação exploratória e inicia, em sequência,

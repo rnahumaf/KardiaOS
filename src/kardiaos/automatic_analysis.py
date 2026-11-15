@@ -7,6 +7,7 @@ from .measurements import measure_recording,technical_quality
 from .signal import six_leads
 from .orientation import evidence_state,normal_signs,model_channels
 from .processing import empirical,profile_info,model_values,scope
+from . import __version__
 
 
 class Cancelled(Exception): pass
@@ -122,8 +123,9 @@ def _legacy_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infe
 def analysis_key(recording,technical_mode=False, *, offset=0.,duration=None):
     """Signal, contact, evidence, active processing, trained heads and requested scope."""
     import hashlib
+    from .global_median import VERSION
     metadata=dict(meta=recording.meta,profile=profile_info(recording),scope=scope(recording,offset,duration),
-                  mode=technical_mode,catalog=catalog(),version='0.15.0-global-median-5')
+                  mode=technical_mode,catalog=catalog(),version=f'{__version__}-{VERSION}')
     digest=hashlib.sha256(json.dumps(metadata,sort_keys=True).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButto
     QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,QComboBox,QScrollArea,QFrame)
 from .automatic_analysis import automatic_analysis,analysis_key,cache_analysis,cached_analysis
 from .measurement_quality import warning as quality_warning, detail as quality_detail
+from .analysis_presentation import criterion_group
 from .orientation import evidence_state
 from .timing_plot import TimingPlot
 from .evidence_view import EvidencePanel
@@ -57,10 +58,30 @@ class AutomaticAnalysisDialog(QDialog):
         note=label('Análise automática exploratória · amplitudes estimadas · derivações de membros, sem precordiais.');note.setObjectName('muted');nb.addWidget(note)
         self.criteria_toggle=QPushButton('Mostrar critérios técnicos');self.criteria_toggle.setCheckable(True);nb.addWidget(self.criteria_toggle,0,Qt.AlignmentFlag.AlignLeft)
         self.technical_body=QWidget();tb=QVBoxLayout(self.technical_body);tb.setContentsMargins(0,0,0,0)
-        self.score_table=QTableWidget(0,2);self.score_table.setHorizontalHeaderLabels(['Critério avaliado','Resultado / fundamento'])
-        self.score_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);tb.addWidget(self.score_table)
+        self.rule_tables = {}
+        self.rule_toggles = {}
+        for key, title in (('detected', 'Detectados'), ('review', 'Possíveis ou inconclusivos'), ('not_detected', 'Não detectados')):
+            toggle = QPushButton();toggle.setCheckable(True);toggle.setChecked(key != 'not_detected')
+            toggle.setAccessibleName(title)
+            table = QTableWidget(0, 2)
+            table.setHorizontalHeaderLabels(['Critério avaliado', 'Resultado / fundamento'])
+            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            tb.addWidget(toggle, 0, Qt.AlignmentFlag.AlignLeft)
+            tb.addWidget(table)
+            self.rule_tables[key] = table
+            self.rule_toggles[key] = (title, toggle)
+            toggle.toggled.connect(self.update_rule_groups)
+            table.cellClicked.connect(lambda row, col, table=table: self.open_table_evidence(table, row))
+            table.cellActivated.connect(lambda row, col, table=table: self.open_table_evidence(table, row))
+        self.update_rule_groups()
         self.criteria_table=QTableWidget(0,2);self.criteria_table.setHorizontalHeaderLabels(['Medição e qualidade','Método / limite'])
-        self.criteria_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);tb.addWidget(self.criteria_table)
+        self.criteria_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        method_toggle = QPushButton('Medição e qualidade')
+        method_toggle.setCheckable(True)
+        tb.addWidget(method_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        tb.addWidget(self.criteria_table)
+        self.criteria_table.hide()
+        method_toggle.toggled.connect(self.criteria_table.setVisible)
         nb.addWidget(self.technical_body);self.technical_body.hide();nb.addStretch()
         self.criteria_toggle.toggled.connect(self.toggle_criteria)
         mb=page('Medidas');self.measure_note=label('Medianas da gravação completa; intervalos globais.');mb.addWidget(self.measure_note)
@@ -80,14 +101,13 @@ class AutomaticAnalysisDialog(QDialog):
         self.beat_selector=QComboBox();self.beat_selector.setAccessibleName('Batimento');self.beat_selector.setEnabled(False);self.beat_selector.hide();lb.addWidget(self.beat_selector)
         self.timing_plot=TimingPlot(recording);lb.addWidget(self.timing_plot,1)
         self.beat_selector.currentIndexChanged.connect(self.timing_plot.set_beat);self.tabs.addTab(limits,'Curvas e marcos')
-        self.evidence_panel=EvidencePanel(recording);outer.addWidget(self.evidence_panel);self.evidence_panel.hide()
+        display_config = getattr(getattr(parent, 'paper', None), 'display_config', None)
+        self.evidence_panel=EvidencePanel(recording, display_config=display_config);outer.addWidget(self.evidence_panel);self.evidence_panel.hide()
         self.evidence_panel.overview.connect(self.show_all_curves)
-        self.score_table.cellClicked.connect(self.open_table_evidence)
-        self.score_table.cellActivated.connect(self.open_table_evidence)
         for widget in (self.findings_label,self.morphology_label,self.possibilities_label):
             widget.setTextFormat(Qt.TextFormat.RichText);widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction);widget.setOpenExternalLinks(False)
             widget.linkActivated.connect(self.open_evidence)
-        for table in (self.measure_table,self.score_table,self.criteria_table,self.feature_table):
+        for table in (self.measure_table, *self.rule_tables.values(), self.criteria_table, self.feature_table):
             table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);table.verticalHeader().hide();table.setWordWrap(True)
             table.setAlternatingRowColors(True);table.setShowGrid(False);table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
             table.setFrameShape(QFrame.Shape.NoFrame)
@@ -112,16 +132,25 @@ class AutomaticAnalysisDialog(QDialog):
     def show_all_curves(self):
         self.evidence_panel.hide();self.curve_overview.show()
 
-    def open_table_evidence(self,row,column):
-        item=self.score_table.item(row,0)
+    def open_table_evidence(self,table,row):
+        item=table.item(row,0)
         if item and item.data(Qt.ItemDataRole.UserRole):self.open_evidence(item.data(Qt.ItemDataRole.UserRole))
+
+    def update_rule_groups(self):
+        for key, table in self.rule_tables.items():
+            title, toggle = self.rule_toggles[key]
+            count = table.rowCount()
+            toggle.setText(f'{title} ({count}) · ' + ('Recolher' if toggle.isChecked() and count else 'Expandir' if count else 'Sem critérios'))
+            toggle.setEnabled(bool(count))
+            table.setVisible(toggle.isChecked() and count > 0)
+        QTimer.singleShot(0, self.fit_tables)
 
     def toggle_criteria(self,shown):
         self.technical_body.setVisible(shown);self.criteria_toggle.setText('Ocultar critérios técnicos' if shown else 'Mostrar critérios técnicos')
         self.fit_tables()
 
     def fit_tables(self):
-        for table in (self.measure_table,self.score_table,self.criteria_table,self.feature_table):
+        for table in (self.measure_table, *self.rule_tables.values(), self.criteria_table, self.feature_table):
             table.resizeRowsToContents()
             table.setFixedHeight(table.horizontalHeader().height()+sum(table.rowHeight(i) for i in range(table.rowCount()))+4)
 
@@ -139,7 +168,7 @@ class AutomaticAnalysisDialog(QDialog):
     def start(self,force=False):
         if self.busy() or self.closing:return
         self.show_all_curves();self.evidence_panel.set_result({})
-        self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
+        self.result=None;self.clear_rule_tables();self.measure_table.setRowCount(0)
         self.classification_summary.setText('Atualizando a análise…');self.findings_label.clear();self.pending_label.clear();self.feature_table.setRowCount(0)
         self.quality_summary.clear();self.quality_summary.hide();self.qtc_summary.clear()
         for widget in (self.morphology_label,self.possibilities_label,self.limitations_label):widget.clear();widget.hide()
@@ -190,14 +219,20 @@ class AutomaticAnalysisDialog(QDialog):
             for col,text in enumerate([item['text'],item.get('reason') or item.get('criterion','')]):
                 cell=QTableWidgetItem(text);cell.setToolTip(text);self.criteria_table.setItem(row,col,cell)
         self.criteria_table.resizeRowsToContents()
-    def add_row(self,values,key=None):
-        row=self.score_table.rowCount();self.score_table.insertRow(row)
+    def clear_rule_tables(self):
+        for table in self.rule_tables.values():
+            table.setRowCount(0)
+        self.update_rule_groups()
+
+    def add_row(self,group,values,key=None):
+        table = self.rule_tables[group]
+        row=table.rowCount();table.insertRow(row)
         for col,text in enumerate(values):
-            item=QTableWidgetItem(text);item.setToolTip(text);self.score_table.setItem(row,col,item)
+            item=QTableWidgetItem(text);item.setToolTip(text);table.setItem(row,col,item)
         if key:
-            self.score_table.item(row,0).setData(Qt.ItemDataRole.UserRole,key)
-            self.score_table.item(row,0).setToolTip('Abrir evidência nas curvas')
-        self.score_table.resizeRowToContents(row)
+            table.item(row,0).setData(Qt.ItemDataRole.UserRole,key)
+            table.item(row,0).setToolTip('Abrir evidência nas curvas')
+        table.resizeRowToContents(row)
     def on_result(self,result):
         if result.get('source_key') and result['source_key']!=analysis_key(self.recording):return
         self.result=result;self.evidence_panel.set_result(result);self.show_all_curves();self.export_button.setEnabled(True)
@@ -205,7 +240,7 @@ class AutomaticAnalysisDialog(QDialog):
         from .measurement_quality import alerts
         messages=alerts(result.get('measurements',{}))
         self.quality_summary.setText('Revisar medidas\n'+'\n'.join(messages) if messages else '');self.quality_summary.setVisible(bool(messages))
-        self.score_table.setRowCount(0)
+        self.clear_rule_tables()
         classification=result.get('classification',{})
         self.classification_summary.setText(classification.get('summary',result.get('reason') or 'Análise automática inconclusiva'))
         findings=classification.get('findings',[])
@@ -220,24 +255,34 @@ class AutomaticAnalysisDialog(QDialog):
                 (self.possibilities_label,'Possibilidades entre subconjuntos · somente nos detalhes',possibilities),
                 (self.limitations_label,'Limitações das comparações exploratórias',limitations)]:
             widget.setText(title+'\n'+'\n'.join('• '+v for v in items) if items else '');widget.setVisible(bool(items))
-        if classification.get('sinus_supported'):self.add_row(['Ritmo compatível com origem sinusal','P positiva em I/II, negativa em aVR e associação P–QRS consistente nos batimentos alinhados. Estimativa automática.'],'sinus')
-        if classification.get('regular') is not None:self.add_row(['Ritmo regular' if classification['regular'] else 'Ritmo irregular',f"Variação dos RR originais: {classification['rr_cv']*100:.1f}%."],'irregular')
-        for item in sorted(classification.get('rules',[]),key=lambda v:{'detected':0,'unavailable':1,'not_detected':2}[v['status']]):
+        if classification.get('sinus_supported'):
+            self.add_row('detected', ['Ritmo de base sinusal', 'Polaridade de P e associação P–QRS nos batimentos predominantes.'], 'sinus')
+        elif classification.get('sinus_supported') is not None:
+            self.add_row('review', ['Origem do ritmo de base', '. '.join(classification.get('sinus_reasons', []))], 'sinus')
+        quality = result.get('measurements', {}).get('technical_quality', {})
+        if quality.get('p_onset_reviews'):
+            self.add_row('review', ['Instabilidade no início de P', quality['boundaries']['pon']['reason']], 'p_onset_review')
+        for item in classification.get('rules',[]):
             prefix='Indeterminado: ' if item.get('technical_status')=='indeterminate' else {'detected':'','not_detected':'Não detectado: ','unavailable':'Indisponível: '}[item['status']]
             if item.get('presentation')=='description' and item['status']=='detected':prefix='Descrição: '
             if item.get('possible') and item['status']!='detected':prefix='Possível nos subconjuntos: '
             elif item.get('possible_morphology_leads') and item['status']!='detected':prefix='Possível: '
             detail=item['reason'] or item['criterion']
+            if item['id'] == 'irregular' and classification.get('rr_cv') is not None:
+                detail = f"CV dos RR originais: {classification['rr_cv']*100:.1f}%. " + detail
+            if item.get('interpretation'):detail=item['interpretation']+' '+detail
             if item.get('leads'):detail+=' Derivações: '+', '.join(item['leads'])+'.'
             if item.get('amplitude_estimated'):detail+=' Amplitude estimada.'
             if item.get('possible'):detail+=' '+item['possible']['reason']+' Subconjuntos: '+', '.join(item['possible']['subsets'])+'.'
             if item.get('possible_morphology_leads'):detail+=' Componentes discretos em '+', '.join(item['possible_morphology_leads'])+'.'
-            if item.get('limitations'):detail+=' '+' '.join(item['limitations'])
+            if item['status'] == 'detected' and item.get('limitations'):
+                detail+=' '+' '.join(item['limitations'])
             if item.get('possible_context'):prefix='Possível: ';detail+=' '+item['possible_context']
-            self.add_row([prefix+item['label'],detail],item['id'])
+            self.add_row(criterion_group(item),[prefix+item['label'],detail],item['id'])
+        self.update_rule_groups()
         def link(key,value):return '<a style="color:#176b55" href="'+escape(key,quote=True)+'">'+escape(value)+'</a>'
-        links=[link(v['id'],v['label']) for v in findings]
-        if classification.get('sinus_supported') is not None:links.append(link('sinus',('Ritmo sinusal' if classification['sinus_supported'] else 'Verificar origem sinusal')+' · ver evidências'))
+        links=[link(v['id'],v['label'] + (' · '+v['interpretation'] if v.get('interpretation') else '')) for v in findings]
+        if classification.get('sinus_supported') is not None:links.append(link('sinus',('Ritmo de base sinusal' if classification['sinus_supported'] else 'Verificar origem do ritmo')+' · ver evidências'))
         if classification.get('regular'):links.append(link('irregular','Ritmo regular · ver evidências'))
         if links:self.findings_label.setText('<br>'.join(links))
         descriptions=[];possible_links=[]

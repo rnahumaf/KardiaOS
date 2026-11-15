@@ -86,8 +86,9 @@ def test_click_navigation_subset_switch_and_return(qt_application):
     assert e.source_selector.count()==3 and e.data['subset']==0
     e.source_selector.setCurrentIndex(2);assert e.data['subset']==1
     e.back.click();assert d.curve_overview.isVisible() and not e.isVisible()
-    index=next(i for i in range(d.score_table.rowCount()) if d.score_table.item(i,0).data(Qt.ItemDataRole.UserRole)=='irregular')
-    d.open_table_evidence(index,0);qt_application.processEvents()
+    table = d.rule_tables['not_detected']
+    index=next(i for i in range(table.rowCount()) if table.item(i,0).data(Qt.ItemDataRole.UserRole)=='irregular')
+    d.open_table_evidence(table,index);qt_application.processEvents()
     assert e.data['key']=='irregular' and e.range_row.isVisible()
     e.plot.grab();target=e.plot.rr_targets[-2]
     QTest.mouseClick(e.plot,Qt.MouseButton.LeftButton,pos=QPoint(round(target[0]),round(target[1])))

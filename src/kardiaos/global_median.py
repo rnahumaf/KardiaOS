@@ -14,9 +14,10 @@ from .median_landmarks import smooth_median, delineate_medians
 from .processing import scale_and_signs
 from .signal import six_leads
 from .measurement_engine import empty
+from .rhythm_analysis import analyze_premature, p_association, similarity
 
 FS = 300
-VERSION = 'global-median-5'
+VERSION = 'global-median-6'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -87,13 +88,6 @@ def shared_peaks(raw):
     return np.asarray(peaks, dtype=int), x
 
 
-def similarity(a, b):
-    a = a - a.mean(axis=0)
-    b = b - b.mean(axis=0)
-    den = np.linalg.norm(a) * np.linalg.norm(b)
-    return float(np.sum(a * b) / den) if den > 1e-12 else -1.
-
-
 def align_beats(candidates):
     """Robust shared translation, then conservative exclusion of distinct QRS.
 
@@ -130,7 +124,7 @@ def align_beats(candidates):
     accepted, rejected = [], []
     for c in candidates:
         if c['correlation'] < .80 or c['residual'] > cutoff:
-            rejected.append(dict(sample=c['absolute'], reason='Morfologia QRS distinta do conjunto predominante nas entradas simultâneas.',
+            rejected.append(dict(sample=c['absolute'], wave='qrs', reason='Morfologia QRS distinta do conjunto predominante nas entradas simultâneas.',
                                  correlation=c['correlation'], relative_residual=c['residual'], scope='all_leads'))
         else:
             accepted.append(c)
@@ -162,7 +156,7 @@ def align_beats(candidates):
         for c, curve, residual in zip(comparable, curves, residuals):
             noise = np.linalg.norm(curve - gaussian_filter1d(curve, 2, axis=0))
             if residual > cutoff and norm > 6 * max(noise, 1e-8):
-                rejected.append(dict(sample=c['absolute'], reason=f'Morfologia de {wave} distinta do conjunto predominante nas entradas simultâneas.',
+                rejected.append(dict(sample=c['absolute'], wave=wave.lower(), reason=f'Morfologia de {wave} distinta do conjunto predominante nas entradas simultâneas.',
                                      relative_residual=float(residual), scope='all_leads'))
                 removed.add(c['absolute'])
         accepted = [c for c in accepted if c['absolute'] not in removed]
@@ -261,6 +255,7 @@ def analyze(recording, cancelled=lambda: False):
                 medians[lead][kind], smoothing[lead][kind] = smooth_median(medians[lead][kind])
         if len(accepted) >= 3 and median_rr:
             points, sources, local = global_boundaries(medians, pre, median_rr)
+            rhythm['p_association'] = p_association(stacks['pt'], medians, points)
         for ch, lead in enumerate(names):
             representatives[lead] = dict(unsmoothed_values_mv=unsmoothed[lead]*factor, postprocessing=smoothing[lead], values_mv=medians[lead]['qrs'] * factor, raw_values_mv=medians[lead]['raw'] * factor,
                 pt_values_mv=medians[lead]['pt'] * factor, aligned_beats_mv=stacks['qrs'][:, :, ch] * factor,
@@ -282,6 +277,7 @@ def analyze(recording, cancelled=lambda: False):
         else:
             metric['reason'] = 'Limites globais insuficientes nas medianas; curva preservada.'
     qt = metrics['qt']['value']; qtc = metrics['qtc_f']; qrs = metrics['qrs_duration']['value']
+    rhythm['premature'] = analyze_premature(candidates, excluded, audit, qrs, pre, post, cancelled)
     qtc.update(method=METHOD, boundary_source='global_medians', formula='QTcF = QT(ms) / RR(s)^(1/3)')
     blockers = qtc_blockers(qt, qrs, rr)
     if not blockers:

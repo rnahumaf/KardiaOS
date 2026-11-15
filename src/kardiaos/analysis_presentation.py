@@ -1,6 +1,15 @@
 """Presentation of incomplete criteria without changing their rule status."""
 
 
+def criterion_group(rule):
+    if rule['status'] == 'detected':
+        return 'detected'
+    if (rule['status'] == 'unavailable' or rule.get('technical_status') == 'indeterminate'
+            or any(rule.get(key) for key in ('possible', 'possible_context', 'possible_morphology_leads'))):
+        return 'review'
+    return 'not_detected'
+
+
 def pending_messages(classification, compact=False):
     groups = {}
     labels = set()

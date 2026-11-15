@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 from kardiaos.global_median import analyze, VERSION
+from kardiaos.rule_analysis import VERSION as RULE_VERSION
 from kardiaos.automatic_analysis import automatic_analysis
 from kardiaos.recording import Recording
 from kardiaos.report import pdf_bytes, page_plan
@@ -93,7 +94,7 @@ def test_report_window_does_not_change_median_measurements_or_rhythm():
     assert a['measurements']['method_version'] == VERSION
     for result in (a, b):
         assert not result['scenarios']
-        assert result['classification']['version'] == 'limb-rules-5'
+        assert result['classification']['version'] == RULE_VERSION
         assert all(v['last_sample_exclusive'] - v['first_sample'] == 3000 for v in result['scenarios'])
         assert len(page_plan(r, analysis=result)['rows']) == 6
         assert pdf_bytes(r, analysis=result).startswith(b'%PDF')

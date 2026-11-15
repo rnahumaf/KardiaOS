@@ -17,6 +17,7 @@ from .report import pdf_bytes
 from .contact import channel_available
 from .processing import EMPIRICAL,REFERENCED,DEFAULT_FILTERS,set_profile,profile_id,profile_label
 from .automatic_analysis import analysis_key,cache_analysis,cached_analysis
+from . import __version__
 
 STYLE = """
 QMainWindow, QWidget { background: #f5f7f7; color: #203735; }
@@ -106,7 +107,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.15.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle(f"KardiaOS {__version__}" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -685,7 +686,13 @@ class Window(QMainWindow):
     def refresh_measure_panel(self,result=None):
         classification=(result or {}).get('classification',{})
         self.analysis_summary.setText(classification.get('summary') or (result or {}).get('reason') or ('Análise automática indisponível; consulte os detalhes.' if result else 'Análise automática · aguardando captura'))
-        findings=[item['label'] for item in classification.get('findings',[])]
+        findings = []
+        for item in classification.get('findings', []):
+            if classification.get('sinus_supported') and item['id'] in ('irregular', 'premature'):
+                if item.get('interpretation'):
+                    findings.append(item['interpretation'])
+                continue
+            findings.append(item['label'])
         self.analysis_findings.setText('; '.join(findings[:2])+(f'; mais {len(findings)-2} nos detalhes.' if len(findings)>2 else ''))
         self.analysis_findings.setVisible(bool(findings))
         from .analysis_presentation import pending_messages

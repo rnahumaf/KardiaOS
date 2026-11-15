@@ -10,6 +10,7 @@ from .review_window import select_window
 from .review_signal import PIPELINE_VERSION
 from .hypotheses import merge_hypotheses,visible_hypotheses
 from .rule_analysis import classify
+from . import __version__
 
 def json_value(value):
     if isinstance(value,np.ndarray):return json_value(value.tolist())
@@ -24,7 +25,7 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
     began=time.perf_counter()
     r=recording;key=analysis_key(r) if r is not None else None
     request=scope(r,offset,duration)
-    result=dict(status='running',mode='normal',version='0.15.0',run_id=uuid.uuid4().hex,source_key=key,scope=request,
+    result=dict(status='running',mode='normal',version=__version__,run_id=uuid.uuid4().hex,source_key=key,scope=request,
         evidence=evidence_state(r),operational_profile=profile_info(r),clinical_validation=False,
         measurements=empty('Análise em preparação.'),scenarios=[],unavailable=[],representative={},hypotheses=[],
         qtc_label='QTc: erro na estimativa',selected_lead=None,report_window=None,

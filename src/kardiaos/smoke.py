@@ -71,11 +71,13 @@ def check_automatic():
     from .analysis_dialog import AutomaticAnalysisDialog
     from .report import page_plan,pdf_bytes
     from .processing import set_profile,EMPIRICAL,REFERENCED,DEFAULT_FILTERS
+    from .rule_analysis import VERSION as RULE_VERSION
+    from .global_median import VERSION as MEDIAN_VERSION
     record=Recording(synthetic=True);record.append(0,synthetic_pairs(0,9300),good=True);record.meta.update(start=1.,end=record.last_time)
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     began=time.perf_counter()
     result=automatic_analysis(record)
-    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-5'
+    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']==RULE_VERSION
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
     assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
     assert len(result['representative'])==6
@@ -87,7 +89,7 @@ def check_automatic():
     dialog.show();QApplication.processEvents();assert not dialog.grab().isNull()
     elapsed=time.perf_counter()-began
     assert elapsed<2, f'Rules and rendered UI exceeded target: {elapsed:.3f} s'
-    assert dialog.score_table.rowCount()>=17 and dialog.score_table.columnCount()==2 and dialog.lead_selector.count()==6
+    assert sum(table.rowCount() for table in dialog.rule_tables.values())>=18 and dialog.lead_selector.count()==6
     assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
     for rule in result['classification']['rules']:
         dialog.open_evidence(rule['id']);QApplication.processEvents()
@@ -95,7 +97,7 @@ def check_automatic():
     dialog.show_all_curves();dialog.tabs.setCurrentIndex(0)
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
         assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
-        assert measured['method_version']=='global-median-5'
+        assert measured['method_version']==MEDIAN_VERSION
         assert measured['pipeline']['detector_source']=='displayed_smoothed_medians'
         median=measured['median'];original_median=np.asarray(median['unsmoothed_values_mv'])
         assert max(abs(np.asarray(median['values_mv'])-original_median)) <= .015*np.ptp(original_median)+1e-12

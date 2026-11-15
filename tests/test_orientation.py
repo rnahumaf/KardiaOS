@@ -101,7 +101,7 @@ def test_normal_interface_has_no_sign_comparison_controls(monkeypatch):
     monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,include_models=True,**kw))
     r=signal_record();dialog=AutomaticAnalysisDialog(r,autostart=False)
     dialog.start();wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.score_table.rowCount()>=17 and r._automatic_analysis['mode']=='normal'
+    assert sum(t.rowCount() for t in dialog.rule_tables.values())>=18 and r._automatic_analysis['mode']=='normal'
     assert not dialog.findChildren(QCheckBox) and not hasattr(dialog,'technical')
     dialog.reject()
 
