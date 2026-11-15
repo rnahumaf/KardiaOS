@@ -48,6 +48,9 @@ class AutomaticAnalysisDialog(QDialog):
         self.findings_label=label('');nb.addWidget(self.findings_label)
         self.pending_label=label('');nb.addWidget(self.pending_label)
         self.qtc_summary=label('');self.qtc_summary.setObjectName('muted');nb.addWidget(self.qtc_summary)
+        self.morphology_label=label('');self.morphology_label.hide();nb.addWidget(self.morphology_label)
+        self.possibilities_label=label('');self.possibilities_label.hide();nb.addWidget(self.possibilities_label)
+        self.limitations_label=label('');self.limitations_label.setObjectName('muted');self.limitations_label.hide();nb.addWidget(self.limitations_label)
         self.quality_summary=label('');self.quality_summary.setStyleSheet('color:#855b11;');self.quality_summary.hide();nb.addWidget(self.quality_summary)
         note=label('Análise automática exploratória · amplitudes estimadas · derivações de membros, sem precordiais.');note.setObjectName('muted');nb.addWidget(note)
         self.criteria_toggle=QPushButton('Mostrar critérios técnicos');self.criteria_toggle.setCheckable(True);nb.addWidget(self.criteria_toggle,0,Qt.AlignmentFlag.AlignLeft)
@@ -117,6 +120,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
         self.classification_summary.setText('Atualizando a análise…');self.findings_label.clear();self.pending_label.clear();self.feature_table.setRowCount(0)
         self.quality_summary.clear();self.quality_summary.hide();self.qtc_summary.clear()
+        for widget in (self.morphology_label,self.possibilities_label,self.limitations_label):widget.clear();widget.hide()
         self.measurements_by_lead=[];self.lead_selector.clear();self.criteria_table.setRowCount(0);self.beat_selector.clear();self.timing_plot.set_measurement(None)
         self.lead_selector.setEnabled(False);self.beat_selector.setEnabled(False)
         self.evidence_label.setText(profile_label(self.recording))
@@ -185,13 +189,25 @@ class AutomaticAnalysisDialog(QDialog):
         reasons=pending_messages(classification)
         self.pending_label.setText('Pendências\n'+'\n'.join('• '+v for v in reasons) if reasons else '')
         self.pending_label.setVisible(bool(reasons))
+        from .analysis_presentation import descriptive_messages
+        morphology,possibilities,limitations=descriptive_messages(classification)
+        for widget,title,items in [(self.morphology_label,'Descrições morfológicas · sem efeito isolado na conclusão',morphology),
+                (self.possibilities_label,'Possibilidades entre subconjuntos · somente nos detalhes',possibilities),
+                (self.limitations_label,'Limitações das comparações exploratórias',limitations)]:
+            widget.setText(title+'\n'+'\n'.join('• '+v for v in items) if items else '');widget.setVisible(bool(items))
         if classification.get('sinus_supported'):self.add_row(['Ritmo compatível com origem sinusal','P positiva em I/II, negativa em aVR e associação P–QRS consistente nos batimentos alinhados. Estimativa automática.'])
         if classification.get('regular') is not None:self.add_row(['Ritmo regular' if classification['regular'] else 'Ritmo irregular',f"Variação dos RR originais: {classification['rr_cv']*100:.1f}%."])
         for item in sorted(classification.get('rules',[]),key=lambda v:{'detected':0,'unavailable':1,'not_detected':2}[v['status']]):
             prefix='Indeterminado: ' if item.get('technical_status')=='indeterminate' else {'detected':'','not_detected':'Não detectado: ','unavailable':'Indisponível: '}[item['status']]
+            if item.get('presentation')=='description' and item['status']=='detected':prefix='Descrição: '
+            if item.get('possible') and item['status']!='detected':prefix='Possível nos subconjuntos: '
+            elif item.get('possible_morphology_leads') and item['status']!='detected':prefix='Possível: '
             detail=item['reason'] or item['criterion']
             if item.get('leads'):detail+=' Derivações: '+', '.join(item['leads'])+'.'
             if item.get('amplitude_estimated'):detail+=' Amplitude estimada.'
+            if item.get('possible'):detail+=' '+item['possible']['reason']+' Subconjuntos: '+', '.join(item['possible']['subsets'])+'.'
+            if item.get('possible_morphology_leads'):detail+=' Componentes discretos em '+', '.join(item['possible_morphology_leads'])+'.'
+            if item.get('limitations'):detail+=' '+' '.join(item['limitations'])
             self.add_row([prefix+item['label'],detail])
         features=classification.get('features',{});self.feature_table.setRowCount(len(features))
         for row,(lead,f) in enumerate(features.items()):

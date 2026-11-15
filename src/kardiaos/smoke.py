@@ -33,17 +33,37 @@ def check():
 
 
 def check_research():
-    from .research import analyze,catalog
+    from PySide6.QtWidgets import QApplication
+    from .research import catalog
     from .research_dialog import ResearchDialog
     record=Recording(synthetic=True);record.append(0,synthetic_pairs(0,3300),good=True);record.meta.update(start=1.,end=record.last_time)
-    dialog=ResearchDialog(record)
-    for key,spec in catalog()['models'].items():
-        result=analyze(record,key);assert result['status']=='synthetic',result.get('reasons')
-        assert len(result['scores'])==len(spec['labels']) and np.isfinite([v['score'] for v in result['scores']]).all()
+    # Synthetic samples deliberately carry no synthetic exemption or references.
+    # Exercise the real dialog queue and worker, including raw input provenance.
     record.meta['synthetic']=False
-    for key in catalog()['models']:
-        result=analyze(record,key);assert result['status']=='inconclusive' and result['scores']==[]
-    dialog.close()
+    dialog=ResearchDialog(record);dialog.show()
+    deadline=time.monotonic()+600
+    try:
+        while not all(p.result is not None for p in dialog.panes) or dialog.busy():
+            QApplication.processEvents()
+            if time.monotonic()>deadline:raise AssertionError('Neural dialog did not finish within 600 s')
+            time.sleep(.01)
+        for pane in dialog.panes:
+            result=pane.result;spec=catalog()['models'][pane.key]
+            assert result['status']=='experimental',result.get('reasons')
+            assert len(result['scores'])==len(spec['labels']) and np.isfinite([v['score'] for v in result['scores']]).all()
+            assert pane.table.rowCount()==len(spec['labels']) and pane.run_button.isEnabled()
+            assert result['input_contract']['source']=='raw' and result['input_contract']['amplitude_multiplier']==1
+            assert not result['calibration_verified'] and not result['clinical_validation']
+            assert result['evidence']['decoder']=={'I':None,'II':None}
+        assert dialog.offset.isEnabled() and dialog.run_all.isEnabled()
+        return dict(neural_models={p.key:p.table.rowCount() for p in dialog.panes})
+    finally:
+        # Do not destroy QThreads if the smoke assertion fails during execution.
+        dialog.pending.clear()
+        for pane in dialog.panes:
+            if pane.thread is not None:pane.thread.wait(190000)
+        QApplication.processEvents()
+        dialog.close()
 
 
 def check_automatic():
@@ -55,7 +75,7 @@ def check_automatic():
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     began=time.perf_counter()
     result=automatic_analysis(record)
-    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-3'
+    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-4'
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
     assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
     assert len(result['representative'])==6

@@ -4,12 +4,13 @@ Thresholds and limitations are documented in docs/rules-0100.md. Missing data
 never counts as a negative rule. No diagnosis of infarction or chamber disease.
 """
 import numpy as np
-from scipy.signal import find_peaks
 from .median_landmarks import mad
 from .orientation import normal_signs
+from .morphology_rules import describe_wave
 
-VERSION = 'limb-rules-3'
+VERSION = 'limb-rules-4'
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
+DESCRIPTIONS = ('p_biphasic', 't_biphasic', 't_notched')
 
 
 def context(recording):
@@ -40,7 +41,10 @@ def features(measurement, representatives):
         f.update(available=True, reason='', baseline_mv=qb, pt_baseline_mv=pb, noise_mv=noise)
         p = pt[points['pon']:points['poff']+1]-pb
         f['p_mv'] = float(p[np.argmax(abs(p))])
-        f['p_biphasic'] = bool(p.max() > max(3*noise, .03) and p.min() < -max(3*noise, .03))
+        p_shape = describe_wave(p, noise, 'p')['biphasic']
+        f['p_biphasic'] = p_shape['status'] == 'detected'
+        f['p_biphasic_possible'] = p_shape['status'] == 'possible'
+        f['morphology'] = {'p_biphasic':dict(p_shape, start_index=points['pon'])}
         # Association checks use the common P window on individual aligned curves;
         # they never delineate individual beats or alter any interval.
         beats = np.asarray(rep['aligned_beats_mv']); baseline = np.median(beats[:, a:b], axis=1)
@@ -62,25 +66,29 @@ def features(measurement, representatives):
         f['j_mv'] = float(np.mean(q[j-1:j+2])-qb)
         f['st60_mv'] = float(np.mean(q[j+17:j+20])-qb) if j+20 < points.get('ton', j) else None
         f['st_slope_mv'] = f['st60_mv']-float(np.mean(q[j+5:j+8])-qb) if f['st60_mv'] is not None else None
-        if all(k in points for k in ('ton', 'toff')):
+        if all(k in points for k in ('ton', 'toff')) and points['toff'] > points['ton']:
             t = pt[points['ton']:points['toff']+1]-pb
             f['t_mv'] = float(t[np.argmax(abs(t))]); f['t_duration_ms'] = (points['toff']-points['ton'])/.3
-            f['t_biphasic'] = bool(t.max() > max(3*noise, .05) and t.min() < -max(3*noise, .05))
-            peaks, _ = find_peaks(np.sign(f['t_mv'])*t, prominence=max(3*noise, .15*np.ptp(t)), distance=6)
-            f['t_notched'] = bool(len(peaks) > 1)
+            t_shape = describe_wave(t, noise, 't')
+            for key,shape in [('t_biphasic',t_shape['biphasic']),('t_notched',t_shape['notched'])]:
+                f[key] = shape['status'] == 'detected'
+                f[key+'_possible'] = shape['status'] == 'possible'
+                f['morphology'][key] = dict(shape, start_index=points['ton'])
         else: f['t_mv'] = None
     return result
 
 
 def classify(recording, measurement, representatives, *, feature_data=None, check_stability=True):
     c = context(recording); adult = c['age_years'] is not None and c['age_years'] >= 18
+    amplitude_eligible = adult or c['age_years'] is None
     data = features(measurement, representatives) if feature_data is None else feature_data; rows = []
     metrics = measurement.get('metrics', {})
     def metric(key): return metrics.get(key, {}).get('value')
     def add(key, label, detected, criterion, reason='', leads=(), amplitude=False, required=True):
         status = 'unavailable' if detected is None else 'detected' if detected else 'not_detected'
         rows.append(dict(id=key, label=label, status=status, criterion=criterion, reason=reason,
-                         leads=list(leads), amplitude_estimated=amplitude, required_for_normal=required))
+                         leads=list(leads), amplitude_estimated=amplitude, required_for_normal=required,
+                         presentation='description' if key in DESCRIPTIONS else 'finding', limitations=[]))
     adult_reason = 'Idade adulta não informada ou faixa pediátrica sem regras validadas.'
     hr, pr, qrs, pd, qtc = (metric(k) for k in ('heart_rate','pr','qrs_duration','p_duration','qtc_f'))
     rr = np.asarray(measurement.get('alignment', {}).get('rhythm', {}).get('rr_seconds', []))
@@ -122,36 +130,41 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         found = contiguous(found) if paired else found
         complete = six and all(valid[l].get(field) is not None for l in eligible)
         detected = True if found else False if complete else None
-        if not adult: detected=None
-        add(key,label,detected,criterion,adult_reason if not adult else 'Derivações, base ou marcos insuficientes.' if detected is None else '', found,True)
+        if not amplitude_eligible: detected=None
+        add(key,label,detected,criterion,adult_reason if not amplitude_eligible else 'Derivações, base ou marcos insuficientes.' if detected is None else '', found,True)
     qleads = [l for l in ('I','II','aVL','aVF') if l in valid and ((valid[l]['q_ms']>=30 and valid[l]['q_mv']>=.1) or valid[l]['qs'])]
     qleads = contiguous(qleads)
-    add('q_prominent','Q proeminente ou QS em derivações contíguas',bool(qleads) if adult and six else None,
+    add('q_prominent','Q proeminente ou QS em derivações contíguas',bool(qleads) if amplitude_eligible and (six or qleads) else None,
         'Q inicial ≥30 ms e ≥0,10 mV, ou QS, em I/aVL ou II/aVF. Não determina etiologia nem antiguidade.',
-        adult_reason if not adult else 'Derivações ou base insuficientes.' if not six else '',qleads,True)
+        adult_reason if not amplitude_eligible else 'Derivações ou base insuficientes.' if not six and not qleads else '',qleads,True)
     for key, label in [('t_biphasic','T bifásica'),('t_notched','T com entalhe'),('p_biphasic','P bifásica')]:
         found=[l for l,f in valid.items() if f.get(key)]
-        complete=six and all(key in f for f in valid.values())
+        complete=bool(valid) and all(key in f for f in valid.values())
         add(key,label,bool(found) if complete or found else None,'Morfologia da mediana acima do ruído; descrição sem inferência de causa.',
             'Onda ou base indisponível.' if not complete and not found else '',found,True,False)
+        possible = [l for l,f in valid.items() if f.get(key+'_possible')]
+        if possible: rows[-1]['possible_morphology_leads'] = possible
     # Sinus evidence needs available projections and reproducible P-QRS association;
     # neither regular RR nor a lone positive median P establishes sinus rhythm.
     needed=('I','II','aVR'); alignment=measurement.get('alignment',{})
     sinus=None
     if orientation_ok and all(l in valid for l in needed) and pr is not None:
         sinus=bool(valid['I']['p_mv']>.02 and valid['II']['p_mv']>.02 and valid['aVR']['p_mv']<-.02
-                   and all(valid[l]['p_consistency']>=.9 and valid[l]['p_peak_dispersion_ms']<=20 and not valid[l]['p_biphasic'] for l in needed)
+                   and all(valid[l]['p_consistency']>=.9 and valid[l]['p_peak_dispersion_ms']<=20 for l in needed)
                    and alignment.get('accepted_beats',0)>=5 and not alignment.get('excluded')
                    and not alignment.get('unusable_segments') and not recording.gaps
                    and np.all(recording.quality[:recording.n]))
-    if not orientation_ok:
-        for row in rows:
-            if row['amplitude_estimated']:
-                row.update(status='unavailable',reason='Convenção elétrica não referenciada; selecione explicitamente o perfil empírico para usar seus pressupostos.')
+    for row in rows:
+        if not row['amplitude_estimated']: continue
+        row['limitations'].append('Amplitude estimada pelo perfil ativo; calibração não validada.')
+        if not orientation_ok:
+            row['limitations'].append('Convenção elétrica não referenciada: polaridade do traçado exibido assumida para esta comparação exploratória.')
+        if c['age_years'] is None and row['presentation'] != 'description':
+            row['limitations'].append('Idade não informada: comparação exploratória com limiares de adulto.')
     if check_stability:
         from .measurement_quality import guard_rules
         guard_rules(recording,measurement,rows)
-    findings=[r for r in rows if r['status']=='detected']
+    findings=[r for r in rows if r['status']=='detected' and r['presentation']=='finding']
     missing=[r for r in rows if r['required_for_normal'] and r['status']=='unavailable']
     if not findings and sinus and regular:
         summary='Sinusal, regular, normal nos critérios avaliados'
@@ -161,6 +174,8 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         status='partial' if missing else 'findings'
     else: summary='Análise automática inconclusiva';status='inconclusive'
     return dict(version=VERSION,status=status,summary=summary,context=c,rules=rows,features=data,
+        morphology=[r for r in rows if r['presentation']=='description'],
+        possibilities=[r for r in rows if r.get('possible') and r['presentation']=='finding'],
         sinus_supported=sinus,regular=regular,rr_cv=cv,findings=findings,
         limitations=['Derivações de membros; sem precordiais.','Amplitudes estimadas pelo perfil ativo; hipóteses exploratórias.',
                      'Sem inferência de infarto, eletrólitos, aumento de câmaras ou bloqueio de ramo específico.'],

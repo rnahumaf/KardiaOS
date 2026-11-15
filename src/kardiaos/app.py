@@ -106,7 +106,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.13.3" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.14.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)

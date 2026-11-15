@@ -1,5 +1,9 @@
 # Qualidade técnica dos marcos e medidas — 0.12.0
 
+Na versão 0.14.0, as regras de amplitude passaram a preservar o resultado da
+mediana completa e registrar instabilidade como limitação. Veja o
+[contrato atualizado](exploratory-rules-0140.md). O texto abaixo documenta a versão 0.12.0.
+
 O rótulo fixo “baixa confiança” foi removido do fluxo das medianas. Medidas estáveis
 mostram apenas o valor. Alertas específicos identificam o marco frágil; a tabela
 mostra a faixa observada e os gráficos destacam a variação em âmbar. A faixa é uma

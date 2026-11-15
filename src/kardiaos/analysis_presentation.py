@@ -16,3 +16,19 @@ def pending_messages(classification, compact=False):
         messages.append(reason.rstrip('.') + '. ' + detail + '.')
     messages.extend(item for item in classification.get('missing', []) if item not in labels)
     return messages
+
+
+def descriptive_messages(classification):
+    morphology, possibilities, limitations = [], [], []
+    for rule in classification.get('rules', []):
+        if rule.get('presentation') == 'description':
+            if rule['status'] == 'detected':
+                morphology.append(rule['label']+' — '+', '.join(rule['leads'])+'.')
+            if rule.get('possible_morphology_leads'):
+                morphology.append('Possível '+rule['label']+' — '+', '.join(rule['possible_morphology_leads'])+'; componente discreto na mediana completa.')
+        if rule.get('possible'):
+            p=rule['possible']
+            text='Possível '+rule['label']+' — '+', '.join(p['leads'])+'; '+', '.join(p['subsets'])+'.'
+            (morphology if rule.get('presentation')=='description' else possibilities).append(text)
+        limitations.extend(rule.get('limitations', []))
+    return morphology,possibilities,list(dict.fromkeys(limitations))

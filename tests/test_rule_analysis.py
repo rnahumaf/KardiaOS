@@ -134,7 +134,7 @@ def test_manual_neural_is_explicit(monkeypatch):
     from kardiaos.analysis_dialog import AutomaticAnalysisDialog
     from test_analysis_dialog import wait
     app=QApplication.instance();r=signal_record();d=AutomaticAnalysisDialog(r,autostart=False)
-    d.show();d.start();wait(app,lambda:d.result is not None and not d.busy())
+    d.show();d.start();wait(app,lambda:d.result is not None and not d.busy() and d.neural_button.isEnabled())
     calls=[]
     class Manual:
         def __init__(self,record,parent):

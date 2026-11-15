@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.13.3 exploratória)
+## Análise automática local (0.14.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -111,14 +111,29 @@ A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.
 
 A classificação padrão usa regras locais de ritmo, intervalos e morfologia,
-com critérios e motivos de indisponibilidade visíveis. Idade e sexo são opcionais;
-as regras que dependem desses dados ficam indisponíveis quando eles faltam.
-As hipóteses de amplitude identificam o uso de milivolts estimados.
+com critérios e motivos de indisponibilidade visíveis. Idade e sexo são opcionais.
+Os critérios de amplitude usam milivolts estimados mesmo com instabilidade,
+mostrando as limitações. Sem idade informada, comparam com os limiares de adulto
+com aviso explícito; as demais regras dependentes de idade/sexo mantêm seus bloqueios.
+Achados da mediana completa alimentam a conclusão. Alterações presentes apenas
+em subconjuntos e descrições de P/T bifásicas ou T com entalhe ficam nos detalhes.
+O início global de T é preservado nas comparações; sua variação é registrada.
+[Critérios exploratórios e descrições da versão 0.14.0](docs/exploratory-rules-0140.md).
 
-ECGFounder e DeepPSP ficam disponíveis no botão **Análise neural…**, somente por
-solicitação manual. Mantêm entradas contínuas de 10 s e filtros próprios. A análise
-padrão não carrega redes nem pesos; sua meta é concluir e apresentar a classificação
-em até dois segundos após a captura, com o aplicativo aberto.
+O botão **Análise neural…** abre a avaliação exploratória e inicia, em sequência,
+ECGFounder 1L, DeepPSP 2L e DeepPSP 6L compatíveis com o trecho. Cada configuração
+tem uma aba com progresso, scores ou o motivo de indisponibilidade. A execução
+não exige referência pareada de polaridade e não valida amplitude nem polaridade.
+As redes recebem 10 s contínuos do sinal bruto, na escala de amplitude configurada
+e com a polaridade registrada, seguidos do pré-processamento próprio de cada modelo.
+Filtros de visualização e o ganho empírico de 1,5 não alteram essa entrada, mesmo
+quando o perfil de pesquisa estimada está selecionado. Lacunas, contato inadequado,
+escala inválida e derivações ausentes continuam impedindo a execução correspondente.
+Ao mudar o trecho, **Reavaliar todos** atualiza os resultados; cada modelo também
+pode ser reavaliado separadamente. O JSON registra o contrato de entrada em
+`input_contract`, separado das evidências e do perfil de visualização.
+A análise padrão por regras não carrega redes nem pesos; sua meta é concluir e
+apresentar a classificação em até dois segundos após a captura, com o aplicativo aberto.
 
 Os intervalos são globais das derivações de membros disponíveis, sem precordiais.
 A nova abordagem não herda a qualificação histórica do motor temporal nem declara

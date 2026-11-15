@@ -10,7 +10,7 @@ def fake_infer(key,values,cancelled):
                 checkpoint_sha256=catalog()['models'][key]['sha256'],preprocessing='test double',runtime='test double')
 
 
-def test_all_unknown_orientations_preserved_without_calibrating_or_mutating():
+def test_all_unknown_orientations_preserved_without_calibrating_or_mutating(monkeypatch):
     r=signal_record();r.meta['synthetic']=False
     before=r.raw[:r.n].copy();calls=[]
     def infer(key,values,cancel):calls.append((key,values.copy()));return fake_infer(key,values,cancel)
@@ -21,7 +21,14 @@ def test_all_unknown_orientations_preserved_without_calibrating_or_mutating():
         if key=='deeppsp_6l':np.testing.assert_allclose(x[2],x[1]-x[0],atol=1e-12)
     np.testing.assert_array_equal(before,r.raw[:r.n])
     assert r.meta['amplitude_verified'] is False and 'research_calibration' not in r.meta
-    assert analyze(r,'ecgfounder_1l')['status']=='inconclusive'
+    from kardiaos import research
+    from test_research import successful_worker
+    monkeypatch.setattr(research,'runtime_config',lambda:dict(python='unused',models_dir='unused'))
+    monkeypatch.setattr(research.subprocess,'run',successful_worker)
+    manual=analyze(r,'ecgfounder_1l')
+    assert manual['status']=='experimental' and not manual['calibration_verified']
+    assert manual['input_contract']['raw_multipliers']==[1]
+    np.testing.assert_array_equal(before,r.raw[:r.n])
 
 
 def test_single_lead_never_fills_missing_channels():

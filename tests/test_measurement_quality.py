@@ -86,7 +86,9 @@ def test_amplitude_rule_uses_subset_median_features():
     r,m,reps=case();m['technical_quality']=coherent_quality(m,reps)
     for lead in ('I','aVL'):m['technical_quality']['replicates'][0]['features'][lead]['j_mv']=.15
     c=classify(r,m,reps)
-    assert status(c,'j_elevation')=='unavailable' and status(c,'p_wide')=='not_detected'
+    row=next(v for v in c['rules'] if v['id']=='j_elevation')
+    assert row['status']=='not_detected' and row['possible']['leads']==['I','aVL']
+    assert row['technical_status']=='advisory' and status(c,'p_wide')=='not_detected'
 
 
 def test_cancel_checked_between_subsets(monkeypatch):

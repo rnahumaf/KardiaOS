@@ -85,10 +85,11 @@ def test_live_single_lead_is_accepted_and_changes_with_contacts(window):
     assert r.meta['start'] is not None
     assert r.mode_at() == 1
     assert np.isnan(r.lead_values()[:, 1:]).all()
-    assert 'Somente D1' in window.detail.text()
+    assert 'Somente D1' in window.state_label.toolTip()
     for i in range(900, 1500, 9):
         window.accept_samples(base + i / 300, synthetic_pairs(i, 9))
     assert r.mode_at() == 6
+    assert 'Seis derivações' in window.state_label.toolTip()
     samples = synthetic_pairs(1503, 9)
     samples[:, 1] |= 1
     window.accept_samples(base + 1503 / 300, samples)

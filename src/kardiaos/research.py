@@ -8,7 +8,7 @@ import sys
 import numpy as np
 from .orientation import evidence_state,normal_signs
 from .signal import six_leads
-from .processing import profile_info, model_values, empirical
+from .processing import profile_info, empirical
 
 CATALOG_PATH = Path(__file__).parent / 'assets' / 'research_catalog.json'
 
@@ -52,6 +52,7 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
     factor = r.meta.get('mv_per_count', 0)
     if not isinstance(factor, (int, float)) or not np.isfinite(factor) or factor <= 0:
         reasons.append('Fator de amplitude inválido.')
+        return result
     begin = float(r.meta['start']) + float(offset)
     left = int(np.searchsorted(r.times[:r.n], begin-1e-7, side='left'))
     right = left + 3000
@@ -82,13 +83,24 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
 
 
 def analyze(recording, model_key, offset=0.0):
-    result = inspect_window(recording, model_key, offset)
+    # Manual neural analysis always uses the recorded sign and configured scale,
+    # independently of display filters, operational gain or reference evidence.
+    result = inspect_window(recording, model_key, offset, require_calibration=False)
+    result.update(mode='exploratory', clinical_validation=False, calibration_verified=False)
     if result['status'] != 'ready':
         return result
+    channels = 1 if model_key == 'ecgfounder_1l' else 2
+    factor = float(recording.meta['mv_per_count'])
+    result['input_contract'] = dict(version=1, source='raw', mv_per_count=factor,
+        amplitude_multiplier=1., raw_multipliers=[1]*channels, display_filters_applied=False,
+        preprocessing='model_specific')
     try:
         cfg = runtime_config()
         left, right = result['first_sample'], result['last_sample']
-        values=model_values(recording, model_key, left, right)
+        values = recording.raw[left:right, :channels].astype(float) * factor
+        if model_key == 'deeppsp_6l':
+            values = six_leads(values)
+        values = values.T.copy()
         payload = io.BytesIO()
         np.savez(payload, values_mv=values, model_key=np.array(model_key))
         worker = Path(__file__).with_name('research_worker.py')

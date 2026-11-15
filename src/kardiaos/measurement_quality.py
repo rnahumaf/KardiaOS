@@ -6,7 +6,7 @@ Observed ranges are sensitivity envelopes, never clinical confidence intervals.
 import numpy as np
 from .median_landmarks import smooth_median, delineate_medians
 
-VERSION = 'median-stability-1'
+VERSION = 'median-stability-2'
 MIN_BEATS = 10
 LIMIT_SAMPLES = dict(pon=6, poff=6, qon=3, qoff=3, ton=9, toff=9)
 LABELS = dict(pon='Início de P', poff='Fim de P', qon='Início do QRS',
@@ -36,8 +36,11 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
                        aligned_beats_mv=stacks['qrs'][indices,:,ch]*factor)
               for ch,(lead,m) in enumerate(medians.items())}
         result['subsets'].append(dict(name=name,beat_count=len(indices)))
-        result['replicates'].append(dict(points=p,values=values,
-            features=features(dict(global_fiducials=p),reps)))
+        analysis_points = dict(p)
+        if 'ton' in points: analysis_points['ton'] = points['ton']
+        else: analysis_points.pop('ton',None)
+        result['replicates'].append(dict(points=p,analysis_points=analysis_points,values=values,
+            features=features(dict(global_fiducials=analysis_points),reps)))
     for key,label in LABELS.items():
         if key not in points:
             result['boundaries'][key]=dict(status='unavailable',reason=label+' indisponível.');continue
@@ -114,8 +117,26 @@ def guard_rules(recording, measurement, rows):
         variants.append({v['id']:v for v in classify(recording,m,{},feature_data=replica['features'],check_stability=False)['rules']})
     for row in rows:
         deps=RULE_BOUNDARIES.get(row['id'])
-        if not deps or row['status']=='unavailable':continue
+        if not deps:continue
         boundaries=[quality['boundaries'][k] for k in deps]
+        if row['amplitude_estimated']:
+            # Keep the full-median result. Subset disagreements are advisory,
+            # and contiguity is tested inside each subset, never across subsets.
+            row['central_status']=row['status']
+            reasons=[v.get('reason') or 'Estabilidade do marco não verificada.'
+                     for v in boundaries if v['status']!='stable']
+            if any(v[row['id']]['status']!=row['status'] for v in variants):
+                reasons.append('A avaliação varia entre subconjuntos; resultado principal da mediana completa preservado.')
+            row['limitations'].extend(dict.fromkeys(reasons))
+            if reasons:row['technical_status']='advisory'
+            detected=[(i,v[row['id']]) for i,v in enumerate(variants) if v[row['id']]['status']=='detected']
+            if row['status']!='detected' and detected:
+                names=[quality.get('subsets',[])[i]['name'] if i<len(quality.get('subsets',[])) else f'subconjunto {i+1}' for i,_ in detected]
+                row['possible']=dict(source='subset_medians',subsets=names,
+                    leads=sorted(set().union(*(set(v['leads']) for _,v in detected))),
+                    reason='Presente apenas em subconjuntos; não altera a conclusão da mediana completa.')
+            continue
+        if row['status']=='unavailable':continue
         reason=''
         if any(v['status']=='unverified' for v in boundaries):reason='Estabilidade não verificada: poucos batimentos.'
         elif any(v['status']=='unavailable' or v.get('detected_subsets',0)<4 for v in boundaries):reason='Marcos necessários não reproduzidos em todos os subconjuntos.'

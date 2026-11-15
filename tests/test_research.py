@@ -20,20 +20,75 @@ def capture(single=False, synthetic=True):
     return r
 
 
-def test_real_capture_requires_reference_and_factor_match(monkeypatch):
+def successful_worker(*args, **kwargs):
+    with np.load(io.BytesIO(kwargs['input']), allow_pickle=False) as payload:
+        spec = research.catalog()['models'][str(payload['model_key'])]
+    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(status='ok', scores=[0.25]*len(spec['labels']),
+        checkpoint_sha256=spec['sha256'], runtime='test-double', elapsed_seconds=0, preprocessing='test')).encode())
+
+
+def test_real_capture_is_exploratory_without_validating_reference(monkeypatch):
     r = capture(synthetic=False)
-    def forbidden():
-        pytest.fail('Inference runtime must never be called for unverified calibration')
-    monkeypatch.setattr(research, 'runtime_config', forbidden)
+    monkeypatch.setattr(research, 'runtime_config', lambda: dict(python='unused', models_dir='unused'))
+    monkeypatch.setattr(research.subprocess, 'run', successful_worker)
     for key in research.catalog()['models']:
         result = research.analyze(r, key)
-        assert result['status'] == 'inconclusive' and result['scores'] == []
+        assert result['status'] == 'experimental' and result['scores']
+        assert result['mode'] == 'exploratory' and not result['clinical_validation']
+        assert not result['calibration_verified']
+        assert result['evidence']['decoder'] == {'I': None, 'II': None}
+        assert not any(result['evidence']['amplitude'].values())
     r.meta['amplitude_verified'] = True
     assert not research.calibration_valid(r)
     r.meta['research_calibration'] = dict(reference='Synthetic test reference', polarity_verified=True, mv_per_count=r.meta['mv_per_count'])
     assert not research.calibration_valid(r)
     r.meta['mv_per_count'] *= 2
     assert not research.calibration_valid(r)
+
+
+@pytest.mark.parametrize('key', ['ecgfounder_1l', 'deeppsp_2l', 'deeppsp_6l'])
+@pytest.mark.parametrize('profile', ['referenced', 'research-empirical-v1'])
+def test_manual_neural_input_preserves_raw_scale_and_sign_for_every_profile(monkeypatch, key, profile):
+    from copy import deepcopy
+    from kardiaos.processing import set_profile
+    from kardiaos.signal import six_leads
+    from test_orientation import evidence
+    r = capture(synthetic=False)
+    set_profile(r, profile)
+    evidence(r, 'decoder', 'I', -1)
+    evidence(r, 'decoder', 'II', -1)
+    r.meta['mv_per_count'] *= 2
+    raw = r.raw[:r.n].copy()
+    meta = deepcopy(r.meta)
+    payloads = []
+    monkeypatch.setattr(research, 'runtime_config', lambda: dict(python='unused', models_dir='unused'))
+    def run(*args, **kwargs):
+        with np.load(io.BytesIO(kwargs['input']), allow_pickle=False) as payload:
+            payloads.append(payload['values_mv'].copy())
+        return successful_worker(*args, **kwargs)
+    monkeypatch.setattr(research.subprocess, 'run', run)
+    a = research.analyze(r, key)
+    assert a['status'] == 'experimental'
+    assert r.meta == meta
+    r.configure(FilterConfig(1.0, 25, 50))
+    assert research.analyze(r, key)['status'] == 'experimental'
+    count = 1 if key == 'ecgfounder_1l' else 2
+    expected = raw[300:3300, :count].astype(float)*r.meta['mv_per_count']
+    if key == 'deeppsp_6l': expected = six_leads(expected)
+    np.testing.assert_array_equal(payloads[0], expected.T)
+    np.testing.assert_array_equal(payloads[1], expected.T)
+    np.testing.assert_array_equal(r.raw[:r.n], raw)
+    assert a['input_contract']['raw_multipliers'] == [1]*count
+    assert a['input_contract']['amplitude_multiplier'] == 1
+    assert not a['input_contract']['display_filters_applied']
+
+
+@pytest.mark.parametrize('factor', [0, -1, float('nan'), float('inf'), 'invalid'])
+def test_invalid_scale_does_not_start_runtime(monkeypatch, factor):
+    r = capture(synthetic=False); r.meta['mv_per_count'] = factor
+    monkeypatch.setattr(research, 'runtime_config', lambda: pytest.fail('Invalid input reached runtime'))
+    result = research.analyze(r, 'ecgfounder_1l')
+    assert result['status'] == 'inconclusive' and result['reasons'] == ['Fator de amplitude inválido.']
 
 
 def test_missing_second_lead_and_transport_gap_cannot_be_filled():
