@@ -109,6 +109,6 @@ def test_review_summary_identifies_window_while_retaining_full_record(tmp_path,m
     monkeypatch.setattr(w,'open_pending_preview',lambda:None)
     r=record();a=automatic_analysis(r,infer=fake_infer);w.recording=w.paper.recording=r;w.paper.cursor=r.last_time
     w.background_result(r,a);start=a['report_window']['offset_seconds'];end=start+10
-    assert f'Trecho do laudo/modelos: {start:g}–{end:g} s' in w.analysis_summary.text()
+    assert f'Trecho do laudo: {start:g}–{end:g} s' in w.analysis_summary.text()
     assert w.paper.recording.n==r.n and r.n>3000 and w.paper.cursor==r.last_time
     w.dirty=False;w.close()

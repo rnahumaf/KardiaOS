@@ -30,7 +30,7 @@ def test_independent_states_do_not_generate_alternative_signs(physical,amplitude
     for channel in ('I','II'):
         if amplitude:evidence(r,'amplitude',channel)
         if decoder:evidence(r,'decoder',channel)
-    result=automatic_analysis(r,infer=fake_infer)
+    result=automatic_analysis(r,infer=fake_infer,include_models=True)
     assert result['mode']=='normal'
     assert len(result['scenarios'])==(3 if decoder else 0)
     assert result['evidence']['physical']==('user_declared' if physical else 'unknown')
@@ -41,7 +41,7 @@ def test_independent_states_do_not_generate_alternative_signs(physical,amplitude
 def test_channel_scope_and_derived_leads_and_amplitude_change():
     r=signal_record();r.meta['synthetic']=False;original=r.raw[:r.n].copy()
     evidence(r,'decoder','I',-1)
-    result=automatic_analysis(r,infer=fake_infer)
+    result=automatic_analysis(r,infer=fake_infer,include_models=True)
     assert len(result['scenarios'])==1 and result['scenarios'][0]['raw_multipliers']==[-1]
     assert normal_signs(r,'deeppsp_6l') is None
     evidence(r,'decoder','II',1);evidence(r,'amplitude','I');r.meta['mv_per_count']*=2
@@ -49,7 +49,7 @@ def test_channel_scope_and_derived_leads_and_amplitude_change():
     assert not evidence_state(r)['amplitude']['I']
     calls={}
     def infer(key,values,cancel):calls[key]=values;return fake_infer(key,values,cancel)
-    automatic_analysis(r,infer=infer)
+    automatic_analysis(r,infer=infer,include_models=True)
     x=calls['deeppsp_6l'];np.testing.assert_allclose(x[2],x[1]-x[0]);np.testing.assert_allclose(x[3],-(x[0]+x[1])/2)
     np.testing.assert_array_equal(r.raw[:r.n],original)
     displayed=r.lead_values(300,600,raw=True)
@@ -74,11 +74,11 @@ def test_legacy_metadata_roundtrip_preserves_but_does_not_validate(tmp_path):
     assert state['legacy'] and state['decoder']=={'I':None,'II':None}
     assert state['amplitude']=={'I':False,'II':False} and loaded.meta['research_calibration']==before
     assert 'acquisition_evidence' not in loaded.meta
-    assert not automatic_analysis(loaded,infer=fake_infer)['scenarios']
+    assert not automatic_analysis(loaded,infer=fake_infer,include_models=True)['scenarios']
 
 def test_technical_mode_explicit_and_never_enters_standard_print():
     r=signal_record();r.meta['synthetic']=False
-    normal=automatic_analysis(r,infer=fake_infer);technical=automatic_analysis(r,infer=fake_infer,technical_mode=True)
+    normal=automatic_analysis(r,infer=fake_infer,include_models=True);technical=automatic_analysis(r,infer=fake_infer,include_models=True,technical_mode=True)
     assert not normal['scenarios'] and len(technical['scenarios'])==10
     assert analysis_key(r)!=analysis_key(r,technical_mode=True)
     with pytest.raises(ValueError,match='técnica'):pdf_bytes(r,layout='di',analysis=technical)
@@ -98,10 +98,10 @@ def test_normal_interface_has_no_sign_comparison_controls(monkeypatch):
     from kardiaos.analysis_dialog import AutomaticAnalysisDialog
     from test_analysis_dialog import wait
     app=QApplication.instance() or QApplication([])
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,include_models=True,**kw))
     r=signal_record();dialog=AutomaticAnalysisDialog(r,autostart=False)
     dialog.start();wait(app,lambda:dialog.result is not None and not dialog.busy())
-    assert dialog.score_table.rowCount()==3 and r._automatic_analysis['mode']=='normal'
+    assert dialog.score_table.rowCount()>=17 and r._automatic_analysis['mode']=='normal'
     assert not dialog.findChildren(QCheckBox) and not hasattr(dialog,'technical')
     dialog.reject()
 

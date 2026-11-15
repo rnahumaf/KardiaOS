@@ -24,7 +24,7 @@ def operational():
 def test_assumed_profile_never_validates_evidence_and_uses_display_input(tmp_path):
     r=operational();before=r.raw[:r.n].copy();meta=copy.deepcopy(r.meta);calls={}
     def infer(key,x,cancel):calls[key]=x.copy();return fake_infer(key,x,cancel)
-    a=automatic_analysis(r,infer=infer,duration=10)
+    a=automatic_analysis(r,infer=infer,include_models=True,duration=10)
     assert len(a['scenarios'])==3 and all(v['raw_multipliers'] in [[1],[1,1]] for v in a['scenarios'])
     assert a['operational_profile']['status']=='assumed_empirical'
     assert r.meta==meta and not r.meta['amplitude_verified']
@@ -40,25 +40,25 @@ def test_assumed_profile_never_validates_evidence_and_uses_display_input(tmp_pat
 
 def test_legacy_stays_reference_gated_until_profile_selected():
     r=signal_record();r.meta['synthetic']=False
-    assert not automatic_analysis(r,infer=fake_infer)['scenarios']
-    set_profile(r,EMPIRICAL);assert len(automatic_analysis(r,infer=fake_infer)['scenarios'])==3
-    set_profile(r,REFERENCED);assert not automatic_analysis(r,infer=fake_infer)['scenarios']
+    assert not automatic_analysis(r,infer=fake_infer,include_models=True)['scenarios']
+    set_profile(r,EMPIRICAL);assert len(automatic_analysis(r,infer=fake_infer,include_models=True)['scenarios'])==3
+    set_profile(r,REFERENCED);assert not automatic_analysis(r,infer=fake_infer,include_models=True)['scenarios']
 
 
 def test_profile_scopes_quality_and_cache_invalidation():
-    r=operational();a=automatic_analysis(r,infer=fake_infer,offset=10,duration=10)
+    r=operational();a=automatic_analysis(r,infer=fake_infer,include_models=True,offset=10,duration=10)
     assert all(v['offset_seconds']==10 for v in a['scenarios'])
     assert a['measurements']['offset_seconds']==0 and a['measurements']['duration_seconds']>10
     assert a['measurements']['duration_seconds']==pytest.approx(r.meta['end']-r.meta['start'])
     key=analysis_key(r,offset=10,duration=10);assert key!=analysis_key(r,offset=0,duration=10)
     r.configure(type(DEFAULT_FILTERS)(.05,40,60));assert key!=analysis_key(r,offset=10,duration=10)
     r.quality[300:600]=False
-    assert not automatic_analysis(r,infer=fake_infer,duration=10)['scenarios']
-    assert len(automatic_analysis(r,infer=fake_infer,offset=10,duration=10)['scenarios'])==3
+    assert not automatic_analysis(r,infer=fake_infer,include_models=True,duration=10)['scenarios']
+    assert len(automatic_analysis(r,infer=fake_infer,include_models=True,offset=10,duration=10)['scenarios'])==3
 
 
 def test_results_of_other_signal_rejected_and_other_window_not_printed():
-    r=operational();a=automatic_analysis(r,infer=fake_infer,duration=10)
+    r=operational();a=automatic_analysis(r,infer=fake_infer,include_models=True,duration=10)
     with pytest.raises(ValueError,match='automática'):pdf_bytes(r,offset=15,analysis=a)
     r.raw[1000,0]+=4
     with pytest.raises(ValueError,match='outra captura'):pdf_bytes(r,analysis=a)
@@ -82,7 +82,7 @@ def test_preferences_roundtrip_keeps_unrelated_keys(tmp_path):
 
 def test_preview_window_is_automatic_and_exact(monkeypatch):
     app=QApplication.instance()
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,include_models=True,**kw))
     r=operational();p=PrintPreview(r)
     assert not hasattr(p,'offset') and not hasattr(p,'layout_choice')
     wait(app,lambda:p.analysis['status']=='completed' and not p.thread.isRunning(),seconds=20)
@@ -92,7 +92,7 @@ def test_preview_window_is_automatic_and_exact(monkeypatch):
 
 
 def test_raw_preview_never_attaches_filtered_scores():
-    app=QApplication.instance() or QApplication([]);r=operational();a=automatic_analysis(r,infer=fake_infer);cache_analysis(r,a)
+    app=QApplication.instance() or QApplication([]);r=operational();a=automatic_analysis(r,infer=fake_infer,include_models=True);cache_analysis(r,a)
     p=PrintPreview(r,raw=True,autostart=False)
     text=PdfReader(io.BytesIO(p.data)).pages[0].extract_text();assert '0.2500' not in text;p.close()
 
@@ -129,12 +129,12 @@ def test_operational_profile_abstains_on_unsupported_measurements(problem):
 
 def test_automatic_selection_stays_inside_printed_di_interval():
     r=operational();r.quality[300:1800]=False
-    a=automatic_analysis(r,infer=fake_infer,duration=30)
+    a=automatic_analysis(r,infer=fake_infer,include_models=True,duration=30)
     assert len(a['scenarios'])==3
     assert all(5<=v['offset_seconds']<=20 for v in a['scenarios'])
-    assert not automatic_analysis(r,infer=fake_infer,duration=10)['scenarios']
+    assert not automatic_analysis(r,infer=fake_infer,include_models=True,duration=10)['scenarios']
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    assert '0.2500' not in text and 'Hipóteses dos modelos' in text and 'I+' not in text
+    assert '0.2500' not in text and a['classification']['summary'] in text and 'I+' not in text
 
 
 def test_main_background_processing_repeats_after_filter_change(monkeypatch,tmp_path):
@@ -142,7 +142,7 @@ def test_main_background_processing_repeats_after_filter_change(monkeypatch,tmp_
     app=QApplication.instance() or QApplication([])
     def delayed(key,x,cancel):
         time.sleep(.02);return fake_infer(key,x,cancel)
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,delayed,**kw))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,delayed,include_models=True,**kw))
     settings=QSettings(str(tmp_path/'background.ini'),QSettings.Format.IniFormat)
     w=Window(settings=settings);w.tick_timer.stop();w.recording=operational();w.paper.recording=w.recording
     w.start_background_analysis();w.apply_filters(type(DEFAULT_FILTERS)(.05,40,60));w._analysis_timer.stop();w.start_background_analysis()
@@ -158,7 +158,7 @@ def test_six_lead_vertical_origin_changes_without_compressing_scale():
     from kardiaos.report import page_plan
     from reportlab.lib.units import mm
     from pypdf.generic import ContentStream
-    r=operational();a=automatic_analysis(r,infer=fake_infer,duration=10)
+    r=operational();a=automatic_analysis(r,infer=fake_infer,include_models=True,duration=10)
     plan=page_plan(r,analysis=a);assert len(plan['rows'])==6
     for row in plan['rows']:
         y=row['baseline']+plan['values'][row['first']:row['last'],row['lead']]*10
@@ -182,7 +182,7 @@ def test_cancelled_close_preserves_session_and_allows_new_analysis(monkeypatch,t
     app=QApplication.instance() or QApplication([])
     def delayed(key,x,cancel):
         time.sleep(.03);return fake_infer(key,x,cancel)
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,delayed,**kw))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,delayed,include_models=True,**kw))
     settings=QSettings(str(tmp_path/'close.ini'),QSettings.Format.IniFormat)
     w=Window(settings=settings);w.tick_timer.stop();w.recording=operational();w.paper.recording=w.recording;w.dirty=True
     monkeypatch.setattr(w,'protect_recording',lambda:False)
@@ -199,9 +199,9 @@ def test_model_window_after_gap_never_spills_outside_requested_interval():
     r=operational();r.times[1800:r.n]+=.11;r.meta['end']=r.last_time
     # The requested start lies inside a gap; a complete model window would end
     # 110 ms beyond a ten-second print interval. Never relabel it as the request.
-    blocked=automatic_analysis(r,infer=fake_infer,offset=5,duration=10)
+    blocked=automatic_analysis(r,infer=fake_infer,include_models=True,offset=5,duration=10)
     assert not blocked['scenarios'] and blocked['unavailable']
-    allowed=automatic_analysis(r,infer=fake_infer,offset=5,duration=11)
+    allowed=automatic_analysis(r,infer=fake_infer,include_models=True,offset=5,duration=11)
     assert len(allowed['scenarios'])==3
     for item in allowed['scenarios']:
         actual=float(r.times[item['first_sample']]-r.meta['start'])

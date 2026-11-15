@@ -187,7 +187,13 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
                 k=marker['index']
                 if 0<=k<len(px):
                     c.setStrokeColor(HexColor('#6e817d'));c.setLineWidth(.5);c.line(px[k]*mm,(py[k]-.8)*mm,px[k]*mm,(py[k]+.8)*mm)
-    if plan['inferred'] and analysis.get('hypotheses'):
+    if plan['inferred'] and analysis.get('classification'):
+        summary=analysis['classification']['summary']
+        _text(c,summary,x0,y0+17,7,True)
+        items=analysis.get('hypotheses',[])
+        for index,item in enumerate(items[:2]):_text(c,item['label'],x0,y0+12-index*4,7)
+        if len(items)>2:_text(c,f"Mais {len(items)-2} achados nos detalhes da análise.",x0,y0+4,6.5)
+    elif plan['inferred'] and analysis.get('hypotheses'):
         _text(c,'Hipóteses dos modelos',x0,y0+16,7,True)
         for index,item in enumerate(analysis['hypotheses'][:3]):_text(c,item['label']+' · '+item['model'],x0,y0+12-index*4,7.5)
     profile='perfil empírico' if empirical(recording) else profile_label(recording)

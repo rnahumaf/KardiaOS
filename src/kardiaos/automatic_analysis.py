@@ -123,7 +123,7 @@ def analysis_key(recording,technical_mode=False, *, offset=0.,duration=None):
     """Signal, contact, evidence, active processing, trained heads and requested scope."""
     import hashlib
     metadata=dict(meta=recording.meta,profile=profile_info(recording),scope=scope(recording,offset,duration),
-                  mode=technical_mode,catalog=catalog(),version='0.9.1-global-median-2')
+                  mode=technical_mode,catalog=catalog(),version='0.10.0-global-median-3')
     digest=hashlib.sha256(json.dumps(metadata,sort_keys=True).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())
@@ -150,8 +150,8 @@ def cached_analysis(recording,offset=0.,duration=None):
     return getattr(recording,'_analysis_cache',{}).get(key)
 
 
-def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False,offset=0.,duration=None,qt_infer=None):
+def automatic_analysis(recording,emit=lambda item:None,cancelled=lambda:False,infer=worker_scores, *, technical_mode=False,offset=0.,duration=None,qt_infer=None,include_models=False):
     if technical_mode:
         return _legacy_analysis(recording,emit,cancelled,infer,technical_mode=True,offset=offset,duration=duration)
     from .review_analysis import analyze_review
-    return analyze_review(recording,emit,cancelled,infer,qt_infer,offset,duration)
+    return analyze_review(recording,emit,cancelled,infer,qt_infer,offset,duration,include_models)

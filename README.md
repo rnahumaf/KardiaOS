@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.9.1 exploratória)
+## Análise automática local (0.10.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -95,11 +95,15 @@ batimentos alinhados. Uma medida indisponível não esconde a curva. Não há re
 à delineação de batimentos isolados nem participação do CompactSegmenter082 nas
 medidas operacionais. QTc usa Fridericia, com condições explícitas de aplicação.
 
-A janela comum de 10 s define a exibição no relatório e a entrada contínua dos
-classificadores ECGFounder e DeepPSP. Suas entradas e filtros próprios permanecem
-preservados. As hipóteses continuam vinculadas às amostras exatas dessa janela.
-A lista mostra até três hipóteses e o modelo, sem números de score; a união não
-representa consenso ou probabilidade calibrada.
+A classificação padrão usa regras locais de ritmo, intervalos e morfologia,
+com critérios e motivos de indisponibilidade visíveis. Idade e sexo são opcionais;
+as regras que dependem desses dados ficam indisponíveis quando eles faltam.
+As hipóteses de amplitude identificam o uso de milivolts estimados.
+
+ECGFounder e DeepPSP ficam disponíveis no botão **Análise neural…**, somente por
+solicitação manual. Mantêm entradas contínuas de 10 s e filtros próprios. A análise
+padrão não carrega redes nem pesos; sua meta é concluir e apresentar a classificação
+em até dois segundos após a captura, com o aplicativo aberto.
 
 Os intervalos são globais das derivações de membros disponíveis, sem precordiais.
 A nova abordagem não herda a qualificação histórica do motor temporal nem declara
@@ -107,6 +111,7 @@ validação clínica. Os valores permanecem exploratórios; amplitude e polarida
 não recebem validação automática. No papel não se imprime QT bruto.
 [Método, exclusões e limites da versão 0.9.0](docs/global-medians-090.md).
 [Correção dos marcos e suavização na versão 0.9.1](docs/median-landmarks-091.md).
+[Marcos, regras, dados opcionais e limites da versão 0.10.0](docs/rules-0100.md).
 [Validação histórica do motor temporal](docs/measurement-validation.md).
 
 ## Desenvolvimento

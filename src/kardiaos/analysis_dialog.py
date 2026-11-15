@@ -2,7 +2,7 @@
 import json
 from PySide6.QtCore import Qt,QThread,Signal,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QWidget,
-    QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,QComboBox)
+    QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,QComboBox,QSpinBox)
 from .automatic_analysis import automatic_analysis,analysis_key,cache_analysis,cached_analysis
 from .orientation import evidence_state
 from .timing_plot import TimingPlot
@@ -33,9 +33,17 @@ class AutomaticAnalysisDialog(QDialog):
         super().__init__(parent);self.recording=recording;self.thread=None;self.result=None;self.closing=False
         self.setWindowTitle('KardiaOS — resultados de pesquisa');self.resize(1120,760);self.setMinimumSize(850,650)
         box=QVBoxLayout(self);box.setContentsMargins(20,18,20,16)
-        title=label('Medições e hipóteses dos modelos');title.setStyleSheet('font-size:18px;font-weight:600');box.addWidget(title)
+        title=label('Medições e classificação por regras');title.setStyleSheet('font-size:18px;font-weight:600');box.addWidget(title)
         self.evidence_label=label(profile_label(recording));box.addWidget(self.evidence_label)
         self.qtc_summary=label('QTc: erro na estimativa');box.addWidget(self.qtc_summary)
+        from .rule_analysis import context
+        clinical=context(recording)
+        context_row=QHBoxLayout();context_row.addWidget(label('Idade (anos):'))
+        self.age=QSpinBox();self.age.setRange(-1,120);self.age.setSpecialValueText('Não informada');self.age.setValue(int(clinical['age_years']) if clinical['age_years'] is not None else -1);context_row.addWidget(self.age)
+        context_row.addWidget(label('Sexo de referência:'));self.sex=QComboBox()
+        for title,value in [('Não informado',None),('Masculino','male'),('Feminino','female')]:self.sex.addItem(title,value)
+        self.sex.setCurrentIndex(max(0,self.sex.findData(clinical['sex'])));context_row.addWidget(self.sex)
+        self.apply_context=QPushButton('Aplicar e reavaliar');self.apply_context.clicked.connect(self.apply_clinical_context);context_row.addWidget(self.apply_context);context_row.addStretch();box.addLayout(context_row)
         self.measurements_by_lead=[]
         selection=QHBoxLayout();selection.addWidget(label('Curva exibida:'))
         self.lead_selector=QComboBox();selection.addWidget(self.lead_selector);selection.addStretch();box.addLayout(selection)
@@ -48,11 +56,12 @@ class AutomaticAnalysisDialog(QDialog):
         mb.addWidget(self.measure_table);mb.addWidget(label('QTcF: fórmula de Fridericia, QT(ms) / RR(s)^(1/3).'))
         self.tabs.addTab(measure,'Medições')
         networks=QWidget();nb=QVBoxLayout(networks)
-        nb.addWidget(label('Hipóteses exploratórias na janela do laudo.'))
-        self.score_table=QTableWidget(0,2);self.score_table.setHorizontalHeaderLabels(['Hipótese','Modelo'])
+        self.classification_summary=label('Aguardando análise.');nb.addWidget(self.classification_summary)
+        nb.addWidget(label('Regras exploratórias · amplitudes estimadas · derivações de membros, sem precordiais.'))
+        self.score_table=QTableWidget(0,2);self.score_table.setHorizontalHeaderLabels(['Achado / hipótese','Critério / indisponibilidade'])
         self.score_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
-        for col in (1,):self.score_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
-        nb.addWidget(self.score_table);self.network_tab=self.tabs.addTab(networks,'Hipóteses dos modelos');self.tabs.setTabVisible(self.network_tab,False)
+        self.score_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
+        nb.addWidget(self.score_table);self.network_tab=self.tabs.addTab(networks,'Classificação')
         limits=QWidget();lb=QVBoxLayout(limits);lb.addWidget(label('Medianas em destaque e batimentos alinhados ao fundo. Limites globais compartilhados entre derivações.'))
         self.beat_selector=QComboBox();lb.addWidget(self.beat_selector)
         self.timing_plot=TimingPlot(recording);lb.addWidget(self.timing_plot,1)
@@ -67,15 +76,28 @@ class AutomaticAnalysisDialog(QDialog):
         self.status=label('Pronto.');box.addWidget(self.status)
         row=QHBoxLayout();details=QPushButton('Detalhes técnicos');details.clicked.connect(self.details);row.addWidget(details)
         self.reference_button=QPushButton('Referência');self.reference_button.clicked.connect(self.reference);row.addWidget(self.reference_button)
+        self.neural_button=QPushButton('Análise neural…');self.neural_button.clicked.connect(self.neural_analysis);row.addWidget(self.neural_button)
         row.addStretch();self.run_button=QPushButton('Reavaliar');self.cancel_button=QPushButton('Interromper');self.export_button=QPushButton('Exportar JSON');close=QPushButton('Fechar')
         for b in (self.run_button,self.cancel_button,self.export_button,close):row.addWidget(b)
         box.addLayout(row);self.cancel_button.setEnabled(False);self.export_button.setEnabled(False)
         self.run_button.clicked.connect(lambda:self.start(force=True));self.cancel_button.clicked.connect(self.cancel);self.export_button.clicked.connect(self.export);close.clicked.connect(self.reject)
         if autostart:QTimer.singleShot(0,self.start)
     def busy(self):return self.thread is not None and self.thread.isRunning()
+    def apply_clinical_context(self):
+        if self.busy() or self.recording is None:return
+        self.recording.meta['clinical_context']=dict(age_years=self.age.value() if self.age.value()>=0 else None,sex=self.sex.currentData())
+        if self.parent() is not None and hasattr(self.parent(),'dirty'):self.parent().dirty=True
+        self.start(force=True)
+    def neural_analysis(self):
+        if self.busy() or self.recording is None:return
+        from .research_dialog import ResearchDialog
+        dialog=ResearchDialog(snapshot(self.recording),self)
+        if self.result and self.result.get('report_window'):dialog.offset.setValue(self.result['report_window']['offset_seconds'])
+        dialog.exec()
     def start(self,force=False):
         if self.busy() or self.closing:return
         self.result=None;self.score_table.setRowCount(0);self.measure_table.setRowCount(0)
+        self.classification_summary.setText('Calculando regras locais…')
         self.measurements_by_lead=[];self.lead_selector.clear();self.criteria_table.setRowCount(0);self.beat_selector.clear();self.timing_plot.set_measurement(None)
         self.evidence_label.setText(profile_label(self.recording))
         cached=cached_analysis(self.recording) if self.recording is not None and not force else None
@@ -85,6 +107,7 @@ class AutomaticAnalysisDialog(QDialog):
             for item in cached.get('unavailable',[]):self.update_result(dict(kind='unavailable',value=item))
             self.on_result(cached);return
         self.reference_button.setEnabled(False);self.run_button.setEnabled(False);self.export_button.setEnabled(False);self.cancel_button.setEnabled(True)
+        for widget in (self.age,self.sex,self.apply_context,self.neural_button):widget.setEnabled(False)
         self.status.setText('Calculando medições e verificando entradas.')
         self.thread=AutomaticThread(self.recording,self);self.thread.update.connect(self.update_result);self.thread.result_ready.connect(self.on_result);self.thread.finished.connect(self.on_worker_finished);self.thread.start()
     def update_result(self,event):
@@ -128,16 +151,31 @@ class AutomaticAnalysisDialog(QDialog):
         self.result=result;self.export_button.setEnabled(True)
         self.qtc_summary.setText(result.get('qtc_label','QTc: erro na estimativa'))
         self.score_table.setRowCount(0)
-        rows=result.get('hypotheses',[]) if result.get('status')=='completed' else []
-        for item in rows[:3]:self.add_row([item['label'],item['model']])
-        self.tabs.setTabVisible(self.network_tab,bool(rows))
+        classification=result.get('classification',{})
+        self.classification_summary.setText(classification.get('summary','Análise automática inconclusiva'))
+        if classification.get('sinus_supported'):self.add_row(['Ritmo compatível com origem sinusal','P positiva em I/II, negativa em aVR e associação P–QRS consistente nos batimentos alinhados. Estimativa automática.'])
+        if classification.get('regular') is not None:self.add_row(['Ritmo regular' if classification['regular'] else 'Ritmo irregular',f"Variação dos RR originais: {classification['rr_cv']*100:.1f}%."])
+        for item in sorted(classification.get('rules',[]),key=lambda v:{'detected':0,'unavailable':1,'not_detected':2}[v['status']]):
+            prefix={'detected':'','not_detected':'Não detectado: ','unavailable':'Indisponível: '}[item['status']]
+            detail=item['reason'] or item['criterion']
+            if item.get('leads'):detail+=' Derivações: '+', '.join(item['leads'])+'.'
+            if item.get('amplitude_estimated'):detail+=' Amplitude estimada.'
+            self.add_row([prefix+item['label'],detail])
+        for lead,f in classification.get('features',{}).items():
+            if not f['available']:continue
+            values=[]
+            for key,name,unit in [('p_mv','P','mV'),('q_mv','Q','mV'),('q_ms','Q','ms'),('t_mv','T','mV'),('j_mv','J','mV'),('st60_mv','ST+60','mV')]:
+                if f.get(key) is not None:values.append(f"{name}: {f[key]:.3f} {unit}")
+            self.add_row([lead+' · medidas da mediana','; '.join(values)+' · amplitudes estimadas'])
+        self.tabs.setTabVisible(self.network_tab,True)
         if result.get('selected_lead'):
             index=next((i for i,v in enumerate(self.measurements_by_lead) if v['lead']==result['selected_lead']),0)
             self.lead_selector.setCurrentIndex(index)
         if self.recording is not None:cache_analysis(self.recording,result)
-        self.status.setText({'completed':f"Concluído · {sum(bool(v.get('scores')) for v in result.get('scenarios',[]))} modelos com scores.",'cancelled':'Análise interrompida; resultados parciais.'}.get(result['status'],result.get('reason','Falha local.')))
+        self.status.setText({'completed':f"Regras concluídas em {result.get('elapsed_seconds',0):.2f} s · redes somente sob solicitação.",'cancelled':'Análise interrompida; resultados parciais.'}.get(result['status'],result.get('reason','Falha local.')))
     def on_worker_finished(self):
         self.reference_button.setEnabled(True);self.run_button.setEnabled(True);self.cancel_button.setEnabled(False)
+        for widget in (self.age,self.sex,self.apply_context,self.neural_button):widget.setEnabled(True)
         if self.closing:super().reject()
         elif self.result and self.result.get('status')=='completed':
             parent=self.parent()

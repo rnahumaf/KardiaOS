@@ -17,7 +17,7 @@ def record():
     r=signal_record();set_profile(r,EMPIRICAL);r.configure(DEFAULT_FILTERS);return r
 
 def test_models_keep_report_window_but_medians_use_full_recording():
-    r=record();r.quality[300:1500]=False;before=r.raw.copy();a=automatic_analysis(r,infer=fake_infer)
+    r=record();r.quality[300:1500]=False;before=r.raw.copy();a=automatic_analysis(r,infer=fake_infer,include_models=True)
     w=a['report_window'];assert w['first_sample']>=1500 and w['last_sample_exclusive']-w['first_sample']==3000
     for item in a['scenarios']:
         assert item['first_sample']==w['first_sample'] and item['last_sample_exclusive']==w['last_sample_exclusive'] and not item['cached']
@@ -47,7 +47,7 @@ def test_invalid_contact_cannot_contaminate_neighbouring_review_segment():
     np.testing.assert_array_equal(before[:,0],after[:,0]);assert not np.array_equal(before[:,1],after[:,1])
 
 def test_strict_page_and_square_dimensions_and_no_empty_box():
-    r=record();a=automatic_analysis(r,infer=fake_infer);p=page_plan(r,analysis=a)
+    r=record();a=automatic_analysis(r,infer=fake_infer,include_models=True);p=page_plan(r,analysis=a)
     assert len(p['rows'])==6
     for row in p['rows']:
         assert row['duration']*25==250 and row['end']-row['start']==10
@@ -63,14 +63,14 @@ def test_strict_page_and_square_dimensions_and_no_empty_box():
     with pytest.raises(ValueError,match='escala'):page_plan(r,analysis=a,speed=50)
 
 def test_foreign_window_results_never_print():
-    r=record();a=automatic_analysis(r,infer=fake_infer);foreign=copy.deepcopy(a);foreign['scenarios'][0]['first_sample']+=1
+    r=record();a=automatic_analysis(r,infer=fake_infer,include_models=True);foreign=copy.deepcopy(a);foreign['scenarios'][0]['first_sample']+=1
     with pytest.raises(ValueError,match='outra janela'):pdf_bytes(r,analysis=foreign)
     foreign=copy.deepcopy(a);foreign['source_key']='other'
     with pytest.raises(ValueError,match='outra captura'):pdf_bytes(r,analysis=foreign)
 
 def test_main_previews_once_after_result_and_retains_full_record(tmp_path,monkeypatch):
     app=QApplication.instance();w=Window(settings=QSettings(str(tmp_path/'prefs.ini'),QSettings.Format.IniFormat));w.tick_timer.stop();w._analysis_timer.stop()
-    r=record();w.recording=r;w.paper.recording=r;w.paper.cursor=r.last_time;a=automatic_analysis(r,infer=fake_infer)
+    r=record();w.recording=r;w.paper.recording=r;w.paper.cursor=r.last_time;a=automatic_analysis(r,infer=fake_infer,include_models=True)
     w.background_result(r,a);app.processEvents();app.processEvents();preview=w._auto_preview
     assert preview is not None and preview.isVisible();assert w.paper.recording.n==r.n and preview.plan['last']-preview.plan['first']==3000
     assert w.paper.analysis is a and w.paper.current_templates();preview.close();app.processEvents()

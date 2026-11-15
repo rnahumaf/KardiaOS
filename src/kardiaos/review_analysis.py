@@ -1,5 +1,5 @@
 """Exploratory review, exact common window, independent result availability."""
-import json,uuid
+import json,uuid,time
 import numpy as np
 from .research import catalog,inspect_window
 from .processing import profile_info,model_values,scope,empirical
@@ -9,6 +9,7 @@ from .global_median import analyze as analyze_medians, VERSION
 from .review_window import select_window
 from .review_signal import PIPELINE_VERSION
 from .hypotheses import merge_hypotheses,visible_hypotheses
+from .rule_analysis import classify
 
 def json_value(value):
     if isinstance(value,np.ndarray):return json_value(value.tolist())
@@ -18,11 +19,12 @@ def json_value(value):
     if isinstance(value,float) and not np.isfinite(value):raise ValueError('Nonfinite analysis result')
     return value
 
-def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,duration=None):
+def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,duration=None,include_models=False):
     from .automatic_analysis import analysis_key,Cancelled
+    began=time.perf_counter()
     r=recording;key=analysis_key(r) if r is not None else None
     request=scope(r,offset,duration)
-    result=dict(status='running',mode='normal',version='0.9.1',run_id=uuid.uuid4().hex,source_key=key,scope=request,
+    result=dict(status='running',mode='normal',version='0.10.0',run_id=uuid.uuid4().hex,source_key=key,scope=request,
         evidence=evidence_state(r),operational_profile=profile_info(r),clinical_validation=False,
         measurements=empty('Análise em preparação.'),scenarios=[],unavailable=[],representative={},hypotheses=[],
         qtc_label='QTc: erro na estimativa',selected_lead=None,report_window=None,
@@ -53,6 +55,13 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
             result['unavailable']=[dict(model=k,reason='Sem conjunto de batimentos completos.') for k in catalog()['models']]
             return json_value(result)
         result['templates_complete']=True
+        classification=classify(r,m,representatives)
+        result['classification']=classification
+        result['hypotheses']=[dict(label=v['label'],model='Regras exploratórias',rule_id=v['id']) for v in classification['findings']]
+        if not include_models:
+            result.update(status='completed',elapsed_seconds=time.perf_counter()-began,models_requested=False)
+            return json_value(result)
+        result['models_requested']=True
         for model,spec in catalog()['models'].items():
             if cancelled():raise Cancelled()
             check=inspect_window(r,model,window['offset_seconds'],require_calibration=False)
@@ -72,6 +81,6 @@ def analyze_review(recording,emit,cancelled,infer,qt_infer=None,offset=0.,durati
             except (OSError,ValueError,KeyError,TypeError) as exc:item.update(status='unavailable',reason=str(exc))
             result['scenarios'].append(item);emit(dict(kind='scenario',value=item))
         merged=merge_hypotheses(result['scenarios'],a,b,catalog())
-        result.update(hypotheses=visible_hypotheses(merged),hypothesis_provenance=merged,status='completed')
+        result.update(neural_hypotheses=visible_hypotheses(merged),hypothesis_provenance=merged,status='completed',elapsed_seconds=time.perf_counter()-began)
     except Cancelled:result.update(status='cancelled',hypotheses=[],qtc_label='QTc: erro na estimativa')
     return json_value(result)

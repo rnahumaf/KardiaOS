@@ -16,7 +16,7 @@ from .signal import six_leads
 from .measurement_engine import empty
 
 FS = 300
-VERSION = 'global-median-2'
+VERSION = 'global-median-3'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -211,7 +211,7 @@ def analyze(recording, cancelled=lambda: False):
                   offset_seconds=0., duration_seconds=float((r.meta.get('end') or r.last_time) - r.meta['start']),
                   detected_peaks=peaks_all, fiducials=[], candidate_beats=len(candidates), beats=len(accepted),
                   pipeline=dict(id=VERSION, source='aligned_medians_only', sample_rate_hz=FS, highpass_hz=.5,
-                                lowpass_hz=80, pt_lowpass_hz=30, phase='zero', neural_endpoints=False,
+                                lowpass_hz=80, pt_lowpass_hz=30, phase='zero', neural_endpoints=False, t_onset='ST/rising-limb change point', t_offset='baseline band return',
                                 median_smoothing='bounded Savitzky-Golay 7/4', detector_source='displayed_smoothed_medians'),
                   notes=['Intervalos globais das derivações de membros disponíveis; sem precordiais.',
                          'FC e RR usam a sequência original completa; limites usam somente medianas.'],
@@ -274,11 +274,7 @@ def analyze(recording, cancelled=lambda: False):
         criterion='Exclusão simultânea nas derivações; RR e frequência preservam a sequência original.')]
     result['descriptions'] += [
         dict(id='bundle_branch',status='unavailable',text='Bloqueio de ramo específico: indisponível.',
-             reason='Requer critérios morfológicos e derivações precordiais ausentes; duração QRS isolada não os substitui.'),
-        dict(id='st',status='unavailable',text='Interpretação de ST: indisponível.',
-             reason='Amplitude, orientação e resposta do aparelho não validadas. Não há inferência de infarto.'),
-        dict(id='qtc_classification',status='unavailable',text='Classificação de QTc: indisponível.',
-             reason='Estimativa exploratória nas derivações disponíveis; idade, sexo e contexto clínico não estabelecidos.')]
+             reason='Requer critérios morfológicos e derivações precordiais ausentes; duração QRS isolada não os substitui.') ]
     for item in excluded + incomplete:
         result['descriptions'].append(dict(id='excluded_' + str(item['sample']), status='descriptive',
             text=f"Batimento em {(r.times[item['sample']] - r.meta['start']):.3f} s fora da mediana.", reason=item['reason']))

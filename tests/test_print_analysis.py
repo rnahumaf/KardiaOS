@@ -13,10 +13,10 @@ def test_one_sheet_has_same_window_top_three_without_scores_or_raw_qt():
     r=signal_record();a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
     assert len(plan['rows'])==2 and plan['end']-plan['start']==10
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    for term in ['FC: 60 bpm','P:','QRS:','global; Fridericia','Hipóteses dos modelos']:assert term in text
+    for term in ['FC: 60 bpm','P:','QRS:','global; Fridericia','Análise automática inconclusiva']:assert term in text
     assert 'QT:' not in text and '0.2500' not in text
-    assert len(a['hypotheses'])==3
-    for item in a['hypotheses']:assert item['label'] in text and item['model'] in text
+    assert not a['scenarios']
+    assert a['classification']['summary'] in text
 
 def test_short_blocked_and_poor_quality_trace_only():
     r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)
@@ -34,7 +34,7 @@ def test_preview_automatically_runs_caches_and_cancels(monkeypatch):
     def slow(key,values,cancel):
         while not cancel():time.sleep(.01)
         raise Cancelled()
-    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,slow,**kw))
+    monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,slow,include_models=True,**kw))
     p=PrintPreview(signal_record());p.show();app.processEvents();p.reject()
     wait(app,lambda:not p.thread.isRunning() and not p.isVisible(),seconds=20);assert p.analysis['status']=='cancelled'
 

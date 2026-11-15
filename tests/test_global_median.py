@@ -92,7 +92,8 @@ def test_report_window_does_not_change_median_measurements_or_rhythm():
     assert a['qt']['neural_segmenter_used'] is False
     assert a['measurements']['method_version'] == VERSION
     for result in (a, b):
-        assert len(result['scenarios']) == 3
+        assert not result['scenarios']
+        assert result['classification']['version'] == 'limb-rules-1'
         assert all(v['last_sample_exclusive'] - v['first_sample'] == 3000 for v in result['scenarios'])
         assert len(page_plan(r, analysis=result)['rows']) == 6
         assert pdf_bytes(r, analysis=result).startswith(b'%PDF')

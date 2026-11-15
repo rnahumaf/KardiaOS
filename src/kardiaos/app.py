@@ -71,7 +71,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.9.1" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.10.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -646,8 +646,8 @@ class Window(QMainWindow):
             if not result.get('trace_only') and result.get('reportable'):
                 from .report import measurement_line
                 window=result['report_window'];start=window['offset_seconds'];stop=start+window['duration_seconds']
-                lines=[f'Trecho do laudo/modelos: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
-                if result.get('hypotheses'):lines.append('Hipóteses dos modelos')
+                lines=[f'Trecho do laudo: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
+                if result.get('classification'):lines.append(result['classification']['summary'])
                 lines.extend(item['label']+' · '+item['model'] for item in result.get('hypotheses',[])[:3])
             self.analysis_summary.setText('\n'.join(lines) or result.get('reason') or 'Somente traçado; qualidade insuficiente para análise.')
             self.analysis_summary.show();self._preview_pending=(record,result,self)
@@ -790,8 +790,8 @@ def main():
         try:
             from .smoke import check, check_research, check_automatic
             selected = check_automatic if args.automatic_smoke_test else check_research if args.research_smoke_test else check
-            selected()
-            outcome = dict(status="passed", version=__version__, synthetic_only=True)
+            details = selected() or {}
+            outcome = dict(status="passed", version=__version__, synthetic_only=True, **details)
         except Exception as exc:
             outcome = dict(status="failed", version=__version__, error=type(exc).__name__ + ": " + str(exc), synthetic_only=True)
         # Offscreen smoke jobs do not enter app.exec(); dispose their widgets

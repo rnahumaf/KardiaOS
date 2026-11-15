@@ -6,7 +6,6 @@ All thresholds are exploratory engineering choices, not clinical calibration.
 """
 import numpy as np
 from scipy.signal import savgol_filter, find_peaks
-from .qt_fiducials import endpoint
 
 FS = 300
 
@@ -168,6 +167,36 @@ def combine_candidates(candidates, wave, on, off):
     return points, sources
 
 
+def t_onset(x, lo, peak, noise):
+    """Continuous ST/rising-limb change point on the displayed median.
+
+    Fit a baseline slope and its change, rather than extending a low amplitude
+    threshold backwards through ST. No fixed latency from R is imposed.
+    """
+    estimates = []
+    sign = np.sign(x[peak]-np.median(x[lo:lo+6]))
+    for margin in (3, 5):
+        y = x[lo:peak-margin]
+        if len(y) < 20: return None, 'Subida de T sem extensão suficiente.'
+        z = np.arange(len(y), dtype=float)
+        straight = np.column_stack([np.ones(len(z)), z])
+        initial = np.linalg.lstsq(straight, y, rcond=None)[0]
+        initial_error = float(np.mean((straight@initial-y)**2))
+        best = None
+        for k in range(8, len(y)-8):
+            design = np.column_stack([straight, np.maximum(0, z-k)])
+            coef = np.linalg.lstsq(design, y, rcond=None)[0]
+            if sign*coef[2] <= max(noise/3, 1e-12) or sign*(coef[1]+coef[2]) <= 0: continue
+            error = float(np.mean((design@coef-y)**2))
+            if best is None or error < best[0]: best = (error, lo+k)
+        if best is None or best[0] > .65*initial_error:
+            return None, 'Transição ST/T sem mudança de inclinação sustentada.'
+        estimates.append(best[1])
+    if abs(estimates[0]-estimates[1]) > 4:
+        return None, 'Transição ST/T instável.'
+    return int(np.rint(np.mean(estimates))), ''
+
+
 def delineate_medians(medians, anchor, rr):
     candidates = {}
     for lead, data in medians.items():
@@ -187,11 +216,13 @@ def delineate_medians(medians, anchor, rr):
         t, why = wave_candidate(x, points['qoff']+9, hi, 't', noise, amp)
         c['reasons']['t'] = why
         if t:
-            beat = dict(r=anchor, qon=points['qon'], qoff=points['qoff'])
-            end, why = endpoint(x, np.gradient(x), beat, anchor+int(rr*FS), noise, amp, 'tangent')
-            if end is not None and abs(end-t['off']) <= 9 and end > t['on']:
-                c['t'] = dict(ton=t['on'], toff=end, quality=t['quality'])
-            else: c['reasons']['t'] = why or 'Tangente e retorno da onda à base discordam.'
+            lo = points['qoff']+6
+            base = np.median(x[lo:lo+6])
+            peak = lo+int(np.argmax(abs(x[lo:t['off']]-base)))
+            onset, why = t_onset(x, lo, peak, noise)
+            if onset is not None and onset < t['off']:
+                c['t'] = dict(ton=onset, toff=t['off'], quality=t['quality'])
+            else: c['reasons']['t'] = why
     for wave, on, off in [('p', 'pon', 'poff'), ('t', 'ton', 'toff')]:
         values, provenance = combine_candidates(candidates, wave, on, off)
         points.update(values); sources.update(provenance)

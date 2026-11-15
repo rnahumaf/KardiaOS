@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import time
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
@@ -20,14 +21,26 @@ def main():
     if not files:
         raise SystemExit('No .kardia files in the supplied directory.')
     from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import QCoreApplication,QEvent
     from kardiaos.preview import render_page
+    from kardiaos.analysis_dialog import AutomaticAnalysisDialog
     app = QApplication.instance() or QApplication([])
     totals = dict(cases=len(files), passed=0, six_lead_cases=0, one_lead_cases=0, model_runs=0)
+    timings=[]
     for index, path in enumerate(files, 1):
         digest = hashlib.sha256(path.read_bytes()).digest()
         r = load_recording(path)
         original = r.raw.copy()
+        started=time.perf_counter()
         result = automatic_analysis(r)
+        dialog=AutomaticAnalysisDialog(r,autostart=False)
+        dialog.update_result(dict(kind='measurements',value=result['measurements']))
+        dialog.on_result(result);dialog.tabs.setCurrentIndex(1);dialog.show();app.processEvents()
+        assert not dialog.grab().isNull()
+        timings.append(time.perf_counter()-started);dialog.close();dialog.deleteLater()
+        QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete);app.processEvents()
+        assert timings[-1]<2, 'Rules and rendered result exceeded the 2-second target'
+        assert not result['scenarios'] and result['classification'], 'Neural model used by default'
         assert result['status'] == 'completed', 'Analysis incomplete'
         expected = 6 if np.any(r.lead_modes[:r.n] == 6) else 1
         reps = result['representative']
@@ -58,6 +71,7 @@ def main():
         totals['passed'] += 1
         totals['six_lead_cases' if expected == 6 else 'one_lead_cases'] += 1
         print(json.dumps(dict(case=index, status='passed', representative_curves=expected)), flush=True)
+    totals.update(max_analysis_and_ui_seconds=round(max(timings),3),median_analysis_and_ui_seconds=round(float(np.median(timings)),3))
     print(json.dumps(totals), flush=True)
 
 
