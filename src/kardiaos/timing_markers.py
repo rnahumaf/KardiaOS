@@ -5,6 +5,8 @@ def p_intervals(analysis,lead,first,last):
     root=analysis.get('measurements',{});items=[root]+root.get('additional_leads',[])
     measurement=next((m for m in items if m.get('lead')==lead),{})
     if measurement.get('metrics',{}).get('p_duration',{}).get('value') is None:return []
+    # Global markers belong to the median only, never invented on individual beats.
+    if measurement.get('global_intervals'):return []
     window=analysis.get('report_window') or {};a=window.get('first_sample',0);b=window.get('last_sample_exclusive',0)
     points=[]
     for beat in measurement.get('fiducials',[]):

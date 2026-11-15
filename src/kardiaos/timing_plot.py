@@ -12,7 +12,10 @@ class TimingPlot(QWidget):
         self.setMinimumSize(400,230)
     def set_measurement(self,value):
         self.measurement=value;self.beat=0;self.values=None
-        if value and value.get('fiducials'):
+        if value and value.get('global_intervals'):
+            if value.get('median'):
+                self.values=np.asarray(value['median']['values_mv'])
+        elif value and value.get('fiducials'):
             a=value['first_sample'];b=value['last_sample_exclusive'];channel=0 if value['lead']=='I' else 1
             factor,signs=scale_and_signs(self.recording)
             self.values=preprocess(self.recording.raw[a:b,channel].astype(float))*factor*signs[channel]
@@ -22,6 +25,8 @@ class TimingPlot(QWidget):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing);p.fillRect(self.rect(),QColor('#ffffff'))
         p.setPen(QColor('#21474b'))
         m=self.measurement
+        if m and m.get('global_intervals'):
+            self.paint_median(p,m);return
         if self.values is None or not m or self.beat>=len(m['fiducials']):
             p.drawText(self.rect(),Qt.AlignmentFlag.AlignCenter,'Sem limites disponíveis neste trecho.');return
         point=m['fiducials'][self.beat];a=m['first_sample'];r=point['r']-a
@@ -53,3 +58,39 @@ class TimingPlot(QWidget):
             if len(indices)==2:
                 p.setPen(QColor(color));p.drawText(QRectF(px(np.mean(indices))-30,area.top()-23,60,20),Qt.AlignmentFlag.AlignCenter,name)
         p.setPen(QColor('#526a6e'));p.drawText(QRectF(48,self.height()-30,self.width()-60,22),'Filtro de medição: 0,5–80 Hz, fase zero. Pontos aceitos; não são marcações clínicas revisadas.')
+
+    def paint_median(self,p,m):
+        median=m.get('median')
+        if not median:
+            p.drawText(self.rect(),Qt.AlignmentFlag.AlignCenter,'Sem batimentos completos para formar a mediana.');return
+        y=np.asarray(median['values_mv']);curves=np.asarray(median['aligned_beats_mv'])
+        pt=np.asarray(median['pt_values_mv']);time=np.asarray(median['time_seconds'])*1000
+        area=QRectF(48,66,max(1,self.width()-70),max(1,self.height()-120))
+        low=float(min(curves.min(),pt.min()));high=float(max(curves.max(),pt.max()));span=max(high-low,.05)
+        low-=span*.12;high+=span*.12
+        def px(index):return area.left()+index/(len(y)-1)*area.width()
+        def py(value):return area.bottom()-(value-low)/(high-low)*area.height()
+        for ms in range(-400,651,100):
+            if time[0]<=ms<=time[-1]:
+                xx=area.left()+(ms-time[0])/(time[-1]-time[0])*area.width()
+                p.setPen(QPen(QColor('#e5edef'),1));p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()))
+                p.setPen(QColor('#526a6e'));p.drawText(QRectF(xx-25,area.bottom()+6,50,20),Qt.AlignmentFlag.AlignCenter,str(ms))
+        def draw(values,color,width):
+            path=QPainterPath();path.moveTo(px(0),py(values[0]))
+            for index,value in enumerate(values[1:],1):path.lineTo(px(index),py(value))
+            p.setPen(QPen(QColor(color),width));p.drawPath(path)
+        for curve in curves:draw(curve,'#c4d4d6',.7)
+        draw(y,'#183e42',2)
+        draw(pt,'#488979',1.4)
+        p.setPen(QColor('#526a6e'))
+        name='D'+m['lead'] if m['lead'] in ('I','II','III') else m['lead']
+        p.drawText(QRectF(48,6,self.width()-65,24),f"{name} · {median['group_size']} batimentos alinhados · tempo relativo ao QRS (ms)")
+        p.drawText(QRectF(48,28,self.width()-65,24),'Mediana QRS (escura) · mediana P/T (verde) · limites globais')
+        points=m.get('global_fiducials',{})
+        for on,off,color,name in [('pon','poff','#996800','P'),('qon','qoff','#295eab','QRS'),('ton','toff','#187963','T')]:
+            indices=[points[key] for key in (on,off) if key in points]
+            p.setPen(QPen(QColor(color),1.3,Qt.PenStyle.DashLine))
+            for index in indices:p.drawLine(QPointF(px(index),area.top()),QPointF(px(index),area.bottom()))
+            if indices:p.drawText(QRectF(px(np.mean(indices))-30,area.top()-20,60,20),Qt.AlignmentFlag.AlignCenter,name)
+        p.setPen(QColor('#526a6e'))
+        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Fase zero: QRS 0,5–80 Hz; P/T 0,5–30 Hz. Medidas exploratórias.')

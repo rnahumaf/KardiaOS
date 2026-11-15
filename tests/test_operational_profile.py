@@ -48,8 +48,8 @@ def test_legacy_stays_reference_gated_until_profile_selected():
 def test_profile_scopes_quality_and_cache_invalidation():
     r=operational();a=automatic_analysis(r,infer=fake_infer,offset=10,duration=10)
     assert all(v['offset_seconds']==10 for v in a['scenarios'])
-    assert a['measurements']['offset_seconds']>=10
-    assert a['measurements']['offset_seconds']+a['measurements']['duration_seconds']<=20+1e-6
+    assert a['measurements']['offset_seconds']==0 and a['measurements']['duration_seconds']>10
+    assert a['measurements']['duration_seconds']==pytest.approx(r.meta['end']-r.meta['start'])
     key=analysis_key(r,offset=10,duration=10);assert key!=analysis_key(r,offset=0,duration=10)
     r.configure(type(DEFAULT_FILTERS)(.05,40,60));assert key!=analysis_key(r,offset=10,duration=10)
     r.quality[300:600]=False
@@ -206,4 +206,4 @@ def test_model_window_after_gap_never_spills_outside_requested_interval():
     for item in allowed['scenarios']:
         actual=float(r.times[item['first_sample']]-r.meta['start'])
         assert item['offset_seconds']==pytest.approx(actual)
-        assert actual==pytest.approx(5.11) and actual+10<=16
+        assert actual>=5.11-1e-6 and actual+10<=16+1e-6

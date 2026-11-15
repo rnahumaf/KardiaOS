@@ -16,15 +16,15 @@ from test_automatic_analysis import fake_infer
 def record():
     r=signal_record();set_profile(r,EMPIRICAL);r.configure(DEFAULT_FILTERS);return r
 
-def test_common_window_is_shared_by_models_templates_and_measures():
+def test_models_keep_report_window_but_medians_use_full_recording():
     r=record();r.quality[300:1500]=False;before=r.raw.copy();a=automatic_analysis(r,infer=fake_infer)
     w=a['report_window'];assert w['first_sample']>=1500 and w['last_sample_exclusive']-w['first_sample']==3000
     for item in a['scenarios']:
         assert item['first_sample']==w['first_sample'] and item['last_sample_exclusive']==w['last_sample_exclusive'] and not item['cached']
     for item in a['representative'].values():
-        assert item['source_first_sample']==w['first_sample'] and item['source_last_sample_exclusive']==w['last_sample_exclusive']
+        assert item['source_first_sample']<w['first_sample'] and item['source_last_sample_exclusive']>w['last_sample_exclusive']
     for m in [a['measurements']]+a['measurements']['additional_leads']:
-        assert m['offset_seconds']==pytest.approx(w['offset_seconds']) and m['duration_seconds']<=10
+        assert m['offset_seconds']==0 and m['duration_seconds']>10 and m['global_intervals']
     np.testing.assert_array_equal(before,r.raw)
 
 def test_review_zero_phase_is_gap_segmented_and_cache_invalidates():

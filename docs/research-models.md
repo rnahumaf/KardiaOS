@@ -1,5 +1,7 @@
 # Avaliação experimental local
 
+> Atualização 0.9.0: medianas e medições agora seguem [global-medians-090.md](global-medians-090.md). As descrições anteriores de QT e de medidas por janela abaixo são históricas; os classificadores mantêm a entrada contínua.
+
 ## Pesos e saídas preservadas
 
 | Modelo | Entrada | Saídas treinadas | SHA-256 |

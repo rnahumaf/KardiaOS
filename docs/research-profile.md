@@ -1,4 +1,6 @@
 > Atualização 0.8.0: [fluxo exploratório, templates e fases](exploratory-080.md).
+
+> Atualização 0.9.0: medianas e medições agora seguem [global-medians-090.md](global-medians-090.md). As descrições anteriores de QT e de medidas por janela abaixo são históricas; os classificadores mantêm a entrada contínua.
 > As descrições 0.6/0.7 abaixo registram o método anterior; seus resultados de
 > qualificação permanecem históricos e não são convertidos em validação clínica.
 

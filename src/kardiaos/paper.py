@@ -110,7 +110,7 @@ class ECGPaper(QWidget):
             template=templates.get(['I','II','III','aVR','aVL','aVF'][ch])
             if template:
                 br=QRectF(endx+gap,rect.center().y()-boxh/2,boxw,boxh);p.save();p.setClipRect(br);grid(br);p.restore()
-                p.setPen(QPen(QColor('#899c96'),.7));p.drawRect(br);p.setPen(INK);p.setFont(QFont('Segoe UI',8));p.drawText(QPointF(br.left(),br.top()-2),'Padrão')
+                p.setPen(QPen(QColor('#899c96'),.7));p.drawRect(br);p.setPen(INK);p.setFont(QFont('Segoe UI',8));p.drawText(QPointF(br.left(),br.top()-2),'Mediana')
                 t=np.asarray(template['time_seconds']);v=np.asarray(template['raw_values_mv' if self.raw_mode else 'values_mv'])
                 xx=br.left()+(br.width()-(t[-1]-t[0])*self.speed*self.ppmx)/2+(t-t[0])*self.speed*self.ppmx
                 yy=br.center().y()-(v-(v.min()+v.max())/2)*self.gain*self.ppmy

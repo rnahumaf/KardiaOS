@@ -51,21 +51,22 @@ def check_automatic():
     from .analysis_dialog import AutomaticAnalysisDialog
     from .report import page_plan,pdf_bytes
     from .processing import set_profile,EMPIRICAL,REFERENCED,DEFAULT_FILTERS
-    from .qt_client import WEIGHT_SHA256
     record=Recording(synthetic=True);record.append(0,synthetic_pairs(0,9300),good=True);record.meta.update(start=1.,end=record.last_time)
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     result=automatic_analysis(record)
     assert result['status']=='completed' and len(result['scenarios'])==3
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
-    assert result['qt']['checkpoint_sha256']==WEIGHT_SHA256 and not result['qt']['worker_error'],result['qt'].get('worker_error')
+    assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
+    assert len(result['representative'])==6
     assert not result['clinical_validation'] and result['exploratory_policy']['confidence_calibrated'] is False
-    assert result['qtc_label']=='QTc: erro na estimativa' or 'Fridericia; baixa confiança)' in result['qtc_label']
+    assert result['qtc_label']=='QTc global: indisponível' or 'Fridericia; baixa confiança)' in result['qtc_label']
     np.testing.assert_array_equal(before,record.raw[:record.n]);cache_analysis(record,result)
     dialog=AutomaticAnalysisDialog(record,autostart=False);dialog.update_result(dict(kind='measurements',value=result['measurements']));dialog.on_result(result)
-    assert dialog.score_table.rowCount()==3 and dialog.score_table.columnCount()==2 and dialog.lead_selector.count()==2
-    assert dialog.criteria_table.rowCount()==4
+    assert dialog.score_table.rowCount()==3 and dialog.score_table.columnCount()==2 and dialog.lead_selector.count()==6
+    assert dialog.criteria_table.rowCount()>=2 and not dialog.beat_selector.isVisible()
     for measured in [result['measurements']]+result['measurements']['additional_leads']:
-        assert measured['pipeline']['source']=='raw' and measured['qualification']['policy']=='0.7.0'
+        assert measured['pipeline']['source']=='aligned_medians_only' and measured['global_intervals']
+        assert measured['global_fiducials']==result['measurements']['global_fiducials']
         if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='exploratory_low_confidence'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
     di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
@@ -74,5 +75,5 @@ def check_automatic():
     # The optional referenced profile still requires channel-specific evidence.
     set_profile(record,REFERENCED);record.meta['synthetic']=False
     normal=automatic_analysis(record);assert not normal['scenarios'] and len(normal['unavailable'])==3
-    assert normal['qtc_label']=='QTc: erro na estimativa'
+    assert normal['qt']['source']=='global_medians_only'
     assert not render_page(pdf_bytes(record,layout='di',analysis=normal)).isNull()

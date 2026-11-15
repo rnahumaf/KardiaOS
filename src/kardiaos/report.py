@@ -121,7 +121,8 @@ def measurement_line(analysis):
     for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS')]:
         metric=item.get('metrics',{}).get(key,{})
         value=metric.get('value');text=f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'
-        if key!='heart_rate' and item.get('lead'):text+=f' (D{item["lead"]})'
+        if key!='heart_rate':
+            text+=' (global)' if item.get('global_intervals') else (f' (D{item["lead"]})' if item.get('lead') else '')
         parts.append(name+': '+text)
     return ' | '.join(parts)
 
@@ -177,7 +178,7 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
         if template:
             bx,by,side=row['template_x'],row['template_bottom'],row['template_side'];_grid(c,bx,by,side,side)
             c.setStrokeColor(HexColor('#899c96'));c.setLineWidth(.5);c.rect(bx*mm,by*mm,side*mm,side*mm)
-            _text(c,'Padrão',bx,by+side+.35,5.5)
+            _text(c,'Mediana',bx,by+side+.35,5.5)
             tx=np.asarray(template['time_seconds']);tv=np.asarray(template['raw_values_mv' if raw else 'values_mv']);px=bx+(side-(tx[-1]-tx[0])*speed)/2+(tx-tx[0])*speed
             py=row['template_baseline']+tv*gain;path=c.beginPath();path.moveTo(px[0]*mm,py[0]*mm)
             for xx,yy in zip(px[1:],py[1:]):path.lineTo(xx*mm,yy*mm)
@@ -190,5 +191,5 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
         _text(c,'Hipóteses dos modelos',x0,y0+16,7,True)
         for index,item in enumerate(analysis['hypotheses'][:3]):_text(c,item['label']+' · '+item['model'],x0,y0+12-index*4,7.5)
     profile='perfil empírico' if empirical(recording) else profile_label(recording)
-    _text(c,'Pesquisa exploratória | '+profile+' | A4 a 100% | gravação completa preservada',x0,y0+1,6.5)
+    _text(c,'Pesquisa exploratória | '+profile+' | A4 a 100% | medianas: QRS 0,5–80 Hz; P/T 0,5–30 Hz | gravação completa preservada',x0,y0+1,6.5)
     c.showPage();c.save();return stream.getvalue()

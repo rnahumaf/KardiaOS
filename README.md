@@ -81,24 +81,31 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.8.1 exploratória)
+## Análise automática local (0.9.0 exploratória)
 
-A janela comum de 10 s é escolhida pela qualidade observada dos canais I/II,
-sem consultar escores ou o valor QTc. Os classificadores reais são executados
-nessa janela, com resultados ligados às suas amostras exatas. Uma lista única
-mostra até três hipóteses e o modelo, sem números de score. Duplicatas equivalentes
-mantêm o maior score bruto; isso não é consenso nem probabilidade calibrada.
+A gravação completa alimenta um alinhamento comum às derivações: cada batimento
+recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
+claramente distinta são excluídos do conjunto nas seis derivações, com motivo
+visível. Eles continuam na sequência usada para frequência cardíaca e RR.
 
-FC/P/QRS mantêm o motor temporal 0.7.0. QTc exploratório combina limites da rede
-própria treinada e template da morfologia predominante, com abstenção por qualidade
-e discordância. A fórmula é Fridericia, sempre identificada. A saída numérica traz
-derivação e `baixa confiança`; sem estimativa, `QTc: erro na estimativa`.
-No papel não se imprime QT bruto. Não há edição manual de marcos.
+As medianas por derivação sustentam os limites globais de P, QRS e T e as
+medidas P, QRS, PR, QT e QTc. Os mesmos marcadores aparecem nas curvas, inclusive
+quando outra derivação sustenta o limite. A aba Limites mostra as medianas e os
+batimentos alinhados. Uma medida indisponível não esconde a curva. Não há retorno
+à delineação de batimentos isolados nem participação do CompactSegmenter082 nas
+medidas operacionais. QTc usa Fridericia, com condições explícitas de aplicação.
 
-A qualificação clínica de QT continua reprovada: a política exploratória é
-separada e não declara aprovação do gate 0.7.0. mV e polaridade do decoder não
-recebem validação automática. Não se produzem medidas para completar a página.
-[Métodos, limiares, evidência, filtros e limites](docs/exploratory-080.md).
+A janela comum de 10 s define a exibição no relatório e a entrada contínua dos
+classificadores ECGFounder e DeepPSP. Suas entradas e filtros próprios permanecem
+preservados. As hipóteses continuam vinculadas às amostras exatas dessa janela.
+A lista mostra até três hipóteses e o modelo, sem números de score; a união não
+representa consenso ou probabilidade calibrada.
+
+Os intervalos são globais das derivações de membros disponíveis, sem precordiais.
+A nova abordagem não herda a qualificação histórica do motor temporal nem declara
+validação clínica. Os valores permanecem exploratórios; amplitude e polaridade
+não recebem validação automática. No papel não se imprime QT bruto.
+[Método, exclusões e limites da versão 0.9.0](docs/global-medians-090.md).
 [Validação histórica do motor temporal](docs/measurement-validation.md).
 
 ## Desenvolvimento

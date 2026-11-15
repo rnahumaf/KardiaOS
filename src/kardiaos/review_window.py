@@ -1,7 +1,6 @@
 """Automatic synchronized10s selection, blind to model scores and QT values."""
 import numpy as np
-from .qt_templates import build,quality
-from .measurements import technical_quality
+
 from .signal import FS
 
 T_FLAGS={'T_contrast_absent_or_low','T_dispersion_blurring','possible_T_alternation','T_polarity_disagreement'}
@@ -46,6 +45,8 @@ def trace_window(r,offset=0.,duration=None):
 
 def select_window(r,cancelled=lambda:False,emit=lambda text:None,offset=0.,duration=None):
     from .automatic_analysis import Cancelled
+    from .global_median import shared_peaks,similarity,joint_quality
+    from scipy.ndimage import gaussian_filter1d
     fallback=trace_window(r,offset,duration);begin,end=recording_scope(r);t=r.times[:r.n]
     start=begin+offset;stop=min(end,start+(duration if duration is not None else end-start))
     first=int(np.searchsorted(t,start-1e-7));last=int(np.searchsorted(t,stop-1e-7))
@@ -58,9 +59,19 @@ def select_window(r,cancelled=lambda:False,emit=lambda text:None,offset=0.,durat
         if number%20==0:emit('Selecionando janela comum de 10 s')
         b=a+3000;raw=r.raw[a:b,:count].astype(float)
         if not r.quality[a:b].all() or not np.all(r.lead_modes[a:b]>=(6 if two else 1)) or np.any((r.raw[a:b,:count]&3)!=0):continue
-        if not np.allclose(np.diff(t[a:b]),1/300,atol=1e-6,rtol=0) or technical_quality(raw):continue
-        entries={lead:dict(quality=quality(raw[:,ch]),template=build(raw[:,ch])) for ch,lead in enumerate(leads)}
-        score=rank(entries);candidates.append(dict(first_sample=a,offset_seconds=float(t[a]-begin),quality_rank=score))
+        if not np.allclose(np.diff(t[a:b]),1/300,atol=1e-6,rtol=0) or not joint_quality(raw):continue
+        # Select a continuous display/model window, without delineating any
+        # individual wave or letting derived low-amplitude leads veto medians.
+        peaks,filtered=shared_peaks(raw)
+        complete=[p for p in peaks if 45<=p<len(raw)-46]
+        if len(complete)<3:continue
+        curves=np.stack([filtered[p-45:p+46] for p in complete]);median=np.median(curves,axis=0)
+        repeat=float(np.median([similarity(curve,median) for curve in curves]))
+        noise=float(np.median(abs(raw-gaussian_filter1d(raw,1,axis=0))))
+        contrast=float(np.linalg.norm(np.ptp(median,axis=0))/max(noise,1e-8))
+        score=(repeat,min(contrast,1000.)) if repeat>=.5 and contrast>=6 else None
+        entries={lead:dict(quality=dict(eligible=score is not None,score=repeat)) for lead in leads}
+        candidates.append(dict(first_sample=a,offset_seconds=float(t[a]-begin),quality_rank=score))
         if score is not None and (best_rank is None or score>best_rank):
             best=dict(first_sample=a,last_sample_exclusive=b,offset_seconds=float(t[a]-begin),duration_seconds=10.,
                 layout='six' if two else 'di',analysis_eligible=True,native_leads=leads,reason='')

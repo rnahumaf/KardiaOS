@@ -71,7 +71,7 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.8.1" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.9.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
@@ -646,7 +646,7 @@ class Window(QMainWindow):
             if not result.get('trace_only') and result.get('reportable'):
                 from .report import measurement_line
                 window=result['report_window'];start=window['offset_seconds'];stop=start+window['duration_seconds']
-                lines=[f'Trecho analisado: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
+                lines=[f'Trecho do laudo/modelos: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
                 if result.get('hypotheses'):lines.append('Hipóteses dos modelos')
                 lines.extend(item['label']+' · '+item['model'] for item in result.get('hypotheses',[])[:3])
             self.analysis_summary.setText('\n'.join(lines) or result.get('reason') or 'Somente traçado; qualidade insuficiente para análise.')

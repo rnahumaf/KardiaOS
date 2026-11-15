@@ -37,11 +37,11 @@ class AutomaticAnalysisDialog(QDialog):
         self.evidence_label=label(profile_label(recording));box.addWidget(self.evidence_label)
         self.qtc_summary=label('QTc: erro na estimativa');box.addWidget(self.qtc_summary)
         self.measurements_by_lead=[]
-        selection=QHBoxLayout();selection.addWidget(label('Derivação das medições:'))
+        selection=QHBoxLayout();selection.addWidget(label('Curva exibida:'))
         self.lead_selector=QComboBox();selection.addWidget(self.lead_selector);selection.addStretch();box.addLayout(selection)
         self.lead_selector.currentIndexChanged.connect(self.show_measurement)
         self.tabs=QTabWidget();box.addWidget(self.tabs,1)
-        measure=QWidget();mb=QVBoxLayout(measure);self.measure_note=label('Janela automática comum de 10 s.');mb.addWidget(self.measure_note)
+        measure=QWidget();mb=QVBoxLayout(measure);self.measure_note=label('Medianas da gravação completa; intervalos globais.');mb.addWidget(self.measure_note)
         self.measure_table=QTableWidget(0,3);self.measure_table.setHorizontalHeaderLabels(['Medição','Valor','Método / motivo de indisponibilidade'])
         self.measure_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
         for col in (0,1):self.measure_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
@@ -53,7 +53,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.score_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
         for col in (1,):self.score_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
         nb.addWidget(self.score_table);self.network_tab=self.tabs.addTab(networks,'Hipóteses dos modelos');self.tabs.setTabVisible(self.network_tab,False)
-        limits=QWidget();lb=QVBoxLayout(limits);lb.addWidget(label('Limites calculados no sinal de medição, com filtro próprio de fase zero.'))
+        limits=QWidget();lb=QVBoxLayout(limits);lb.addWidget(label('Medianas em destaque e batimentos alinhados ao fundo. Limites globais compartilhados entre derivações.'))
         self.beat_selector=QComboBox();lb.addWidget(self.beat_selector)
         self.timing_plot=TimingPlot(recording);lb.addWidget(self.timing_plot,1)
         self.beat_selector.currentIndexChanged.connect(self.timing_plot.set_beat);self.tabs.addTab(limits,'Limites')
@@ -94,13 +94,15 @@ class AutomaticAnalysisDialog(QDialog):
         elif kind=='measurements':
             self.measurements_by_lead=[v]+v.get('additional_leads',[])
             self.lead_selector.blockSignals(True);self.lead_selector.clear()
-            self.lead_selector.addItems(['D'+item['lead'] for item in self.measurements_by_lead])
+            self.lead_selector.addItems([('D'+item['lead'] if item['lead'] in ('I','II','III') else item['lead']) for item in self.measurements_by_lead])
             self.lead_selector.blockSignals(False);self.show_measurement(0)
         # Network outputs are published once, after exact-window validation and merging.
     def show_measurement(self,index):
         if not 0<=index<len(self.measurements_by_lead):return
         v=self.measurements_by_lead[index]
         self.measure_note.setText(f"D{v['lead']} · {v.get('offset_seconds',0):g}–{v.get('offset_seconds',0)+v.get('duration_seconds',0):g} s · tempos experimentais; 300 Hz nominais")
+        if v.get('global_intervals'):
+            self.measure_note.setText(f"Gravação completa · {v.get('duration_seconds',0):.1f} s · intervalos globais das derivações disponíveis")
         metrics=list(v['metrics'].values());self.measure_table.setRowCount(len(metrics))
         for row,m in enumerate(metrics):
             method=m.get('reason') or m.get('formula') or m.get('method') or f"Mediana de {m.get('accepted_beats',0)}/{m.get('candidate_beats',0)} batimentos delimitados."
@@ -111,6 +113,7 @@ class AutomaticAnalysisDialog(QDialog):
         self.beat_selector.blockSignals(True);self.beat_selector.clear()
         self.beat_selector.addItems([f"Batimento {i+1} · amostra {p['r']}" for i,p in enumerate(v.get('fiducials',[]))])
         self.beat_selector.blockSignals(False)
+        self.beat_selector.setVisible(not v.get('global_intervals'))
         items=v.get('descriptions',[]);self.criteria_table.setRowCount(len(items))
         for row,item in enumerate(items):
             for col,text in enumerate([item['text'],item.get('reason') or item.get('criterion','')]):

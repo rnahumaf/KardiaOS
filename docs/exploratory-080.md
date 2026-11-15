@@ -1,5 +1,7 @@
 # Revisão exploratória 0.8.0
 
+> Atualização 0.9.0: medianas e medições agora seguem [global-medians-090.md](global-medians-090.md). As descrições anteriores de QT e de medidas por janela abaixo são históricas; os classificadores mantêm a entrada contínua.
+
 Esta versão introduz uma política **exploratória** de QT/QTc explicitamente
 separada da qualificação 0.7.0. A calibração de confiança falhou; nenhum resultado
 é apresentado como clinicamente validado. O gate e os resultados históricos
