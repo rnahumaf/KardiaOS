@@ -26,12 +26,12 @@ def case():
 def status(result,key):return next(v['status'] for v in result['rules'] if v['id']==key)
 
 
-def test_normal_requires_every_prerequisite_and_sinus_evidence():
+def test_normal_in_evaluated_criteria_retains_missing_items_and_requires_sinus():
     r,m,reps=case();c=classify(r,m,reps)
-    assert c['summary']=='Ritmo sinusal, regular, sem alterações pelos critérios avaliados (análise automática)'
+    assert c['summary']=='Sinusal, regular, normal nos critérios avaliados'
     assert c['sinus_supported'] and c['regular'] and not c['missing']
     r.meta['clinical_context'].pop('sex');c=classify(r,m,reps)
-    assert c['status']=='inconclusive' and status(c,'qt_long')=='unavailable'
+    assert c['status']=='no_findings' and status(c,'qt_long')=='unavailable' and 'QTcF prolongado' in c['missing']
     r.meta['clinical_context']['sex']='male';m['global_fiducials'].pop('pon')
     assert classify(r,m,reps)['status']=='inconclusive'
 
@@ -40,7 +40,7 @@ def test_normal_requires_every_prerequisite_and_sinus_evidence():
 def test_missing_or_invalid_age_never_uses_adult_rules(age):
     r,m,reps=case();r.meta['clinical_context']['age_years']=age;m['metrics']['heart_rate']['value']=45
     c=classify(r,m,reps)
-    assert status(c,'brady')=='unavailable' and c['status']=='inconclusive'
+    assert status(c,'brady')=='unavailable' and c['status']=='no_findings' and c['missing']
 
 
 @pytest.mark.parametrize('key,metric,value',[('brady','heart_rate',59),('tachy','heart_rate',101),
@@ -102,7 +102,7 @@ def test_excluded_beat_and_irregular_rr_cannot_generate_sinus_normal_summary():
     c=classify(r,m,reps);assert not c['regular'] and status(c,'irregular')=='detected'
     r.meta.pop('clinical_context')
     c=classify(r,m,reps)
-    assert c['status']=='partial' and c['summary'].startswith('Análise automática inconclusiva')
+    assert c['status']=='partial' and c['summary'].startswith('Achados na análise automática')
     assert status(c,'irregular')=='detected'
 
 
@@ -129,19 +129,12 @@ def test_t_onset_changes_with_wave_timing_not_fixed_r_offset():
     assert delta==pytest.approx(.07,abs=.02)
     assert b['global_fiducials']['toff']>a['global_fiducials']['toff']
 
-def test_context_apply_recomputes_and_manual_neural_is_explicit(monkeypatch):
+def test_manual_neural_is_explicit(monkeypatch):
     from PySide6.QtWidgets import QApplication
     from kardiaos.analysis_dialog import AutomaticAnalysisDialog
     from test_analysis_dialog import wait
     app=QApplication.instance();r=signal_record();d=AutomaticAnalysisDialog(r,autostart=False)
     d.show();d.start();wait(app,lambda:d.result is not None and not d.busy())
-    old=d.result['source_key'];before=r.raw.copy()
-    d.age.setValue(40);d.sex.setCurrentIndex(d.sex.findData('female'));d.apply_context.click()
-    wait(app,lambda:d.result is not None and not d.busy())
-    assert d.result['source_key']!=old
-    assert d.result['classification']['context']==dict(age_years=40,sex='female')
-    assert status(d.result['classification'],'qt_long')!='unavailable'
-    assert not d.result['scenarios'];np.testing.assert_array_equal(r.raw,before)
     calls=[]
     class Manual:
         def __init__(self,record,parent):

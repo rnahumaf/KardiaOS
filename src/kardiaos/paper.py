@@ -28,7 +28,11 @@ class ECGPaper(QWidget):
         super().__init__();self.setMinimumSize(640,500)
         self.recording=None;self.cursor=0.;self.ppmx=self.ppmy=4.;self.speed=25.;self.gain=10.;self.raw_mode=False
         self.overlay='Pronto para uma nova captura';self.overlay_detail='Toque os dois eletrodos superiores e apoie o inferior na perna esquerda.'
-        self.analysis=None;self._grid_cache={};self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self.analysis=None;self.display_config=None;self._grid_cache={};self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+
+    def display_values(self, first, last):
+        from .review_signal import waveform_values
+        return waveform_values(self.recording,first,last,raw=self.raw_mode,display_config=self.display_config)
 
     def current_analysis(self):
         from .automatic_analysis import analysis_key
@@ -46,7 +50,7 @@ class ECGPaper(QWidget):
         height=30.*self.ppmy
         if r is not None and r.n and r.meta.get('start') is not None:
             a=max(0,int(np.searchsorted(r.times[:r.n],self.cursor-15)));b=int(np.searchsorted(r.times[:r.n],self.cursor,side='right'))
-            values=r.lead_values(a,b,raw=self.raw_mode)
+            values=self.display_values(a,b)
             for ch in range(6 if mode==6 else 1):
                 v=values[:,ch];v=v[np.isfinite(v)]
                 if len(v):height=max(height,(max(self.gain,float(v.max())*self.gain)-min(0.,float(v.min())*self.gain)+7)*self.ppmy)
@@ -66,7 +70,7 @@ class ECGPaper(QWidget):
         duration=max(.5,(endx-datax)/(self.speed*self.ppmx));start=float(r.meta['start']) if visible else 0.
         right=max(start+duration,self.cursor);left=right-duration
         times=r.times[:r.n] if visible else np.empty(0);first=int(np.searchsorted(times,max(start,left)));last=int(np.searchsorted(times,min(self.cursor,right),side='right'));last=max(first,last)
-        values=r.lead_values(first,last,raw=self.raw_mode) if visible else None
+        values=self.display_values(first,last) if visible else None
         continuous=np.r_[False,np.isclose(np.diff(times[first:last]),1/300,atol=1e-6,rtol=0)]
         def grid(rect):
             key=(rect.width(),rect.height(),self.ppmx,self.ppmy)

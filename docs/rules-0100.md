@@ -1,5 +1,8 @@
 # Marcos e classificação por regras — 0.10.0
 
+A apresentação do resumo e os controles de idade/sexo foram atualizados na
+[versão 0.11.0](ui-flows-0110.md). Os métodos e limiares abaixo permanecem os mesmos.
+
 A análise padrão calcula medianas e aplica regras locais. Não abre processos de
 inferência, não carrega pesos e não depende de uma rede disponível. O botão
 **Análise neural…** abre a avaliação manual existente; uma rede só executa quando

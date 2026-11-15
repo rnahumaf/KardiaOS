@@ -68,17 +68,18 @@ def test_foreign_window_results_never_print():
     foreign=copy.deepcopy(a);foreign['source_key']='other'
     with pytest.raises(ValueError,match='outra captura'):pdf_bytes(r,analysis=foreign)
 
-def test_main_previews_once_after_result_and_retains_full_record(tmp_path,monkeypatch):
-    app=QApplication.instance();w=Window(settings=QSettings(str(tmp_path/'prefs.ini'),QSettings.Format.IniFormat));w.tick_timer.stop();w._analysis_timer.stop()
-    r=record();w.recording=r;w.paper.recording=r;w.paper.cursor=r.last_time;a=automatic_analysis(r,infer=fake_infer,include_models=True)
-    w.background_result(r,a);app.processEvents();app.processEvents();preview=w._auto_preview
-    assert preview is not None and preview.isVisible();assert w.paper.recording.n==r.n and preview.plan['last']-preview.plan['first']==3000
-    assert w.paper.analysis is a and w.paper.current_templates();preview.close();app.processEvents()
-    w.background_result(r,a);app.processEvents();assert w._auto_preview is None
-    b=copy.deepcopy(a);b['run_id']='second-real-run';w.background_result(r,b);app.processEvents();assert w._auto_preview is not None
-    w._auto_preview.close();app.processEvents()
-    w.recording=record();w.paper.recording=w.recording;w.background_result(r,a);app.processEvents();assert w._auto_preview is None
+def test_main_result_never_opens_print_preview_and_retains_full_record(tmp_path,monkeypatch):
+    app=QApplication.instance();w=Window(settings=QSettings(str(tmp_path/'prefs.ini'),QSettings.Format.IniFormat));w.tick_timer.stop()
+    def forbidden(*args,**kwargs):raise AssertionError('Automatic print preview is forbidden')
+    monkeypatch.setattr('kardiaos.preview.PrintPreview',forbidden)
+    r=record();w.recording=r;w.paper.recording=r;w.paper.cursor=r.last_time;a=automatic_analysis(r)
+    for _ in range(2):
+        w.background_result(r,a);app.processEvents()
+        assert w.paper.analysis is a and w.paper.current_templates()
+        assert w.paper.recording.n==r.n and w.measure_values['qrs_duration'].text()!='—'
+    w.recording=record();w.background_result(r,a);app.processEvents()
     w.dirty=False;w.close()
+
 
 def test_all_bad_quality_calls_no_models_or_qt_and_suppresses_metrics():
     r=record();r.quality[:r.n]=False

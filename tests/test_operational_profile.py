@@ -137,7 +137,7 @@ def test_automatic_selection_stays_inside_printed_di_interval():
     assert '0.2500' not in text and a['classification']['summary'] in text and 'I+' not in text
 
 
-def test_main_background_processing_repeats_after_filter_change(monkeypatch,tmp_path):
+def test_display_filter_does_not_change_background_analysis(monkeypatch,tmp_path):
     import time
     app=QApplication.instance() or QApplication([])
     def delayed(key,x,cancel):
@@ -149,7 +149,8 @@ def test_main_background_processing_repeats_after_filter_change(monkeypatch,tmp_
     wait(app,lambda:getattr(w.recording,'_automatic_analysis',None) is not None and not w._analysis_thread.isRunning(),seconds=15)
     result=w.recording._automatic_analysis
     assert result['source_key']==analysis_key(w.recording)
-    assert result['operational_profile']['filters']['baseline']==.05
+    assert result['operational_profile']['filters']['baseline']==DEFAULT_FILTERS.baseline
+    assert w.paper.display_config.baseline==.05
     assert len(result['scenarios'])==3
     w.autorun.setChecked(False);w.dirty=False;w.close()
 

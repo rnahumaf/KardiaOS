@@ -6,13 +6,14 @@ from .signal import Processor,FS,six_leads
 
 PIPELINE_VERSION='review-zero-phase-2'
 
-def review_counts(recording):
+def review_counts(recording, config=None):
     r=recording;raw=r.raw[:r.n];times=r.times[:r.n]
+    config=config or r.config
     digest=hashlib.blake2b(raw.tobytes()+times.tobytes()+r.quality[:r.n].tobytes(),digest_size=12).hexdigest()
-    key=(digest,r.n,r.config)
+    key=(digest,r.n,config)
     cached=getattr(r,'_review_cache',None)
     if cached is not None and cached[0]==key:return cached[1]
-    result=raw.astype(float).copy();sos=Processor(r.config).sos
+    result=raw.astype(float).copy();sos=Processor(config).sos
     time_breaks=~np.isclose(np.diff(times),1/FS,atol=1e-6,rtol=0)
     if len(sos):
         from .contact import channel_available
@@ -30,11 +31,11 @@ def review_counts(recording):
 def completed(recording):
     return recording is not None and recording.meta.get('end') is not None
 
-def waveform_values(recording,first,last,raw=False,mask_contact=True):
+def waveform_values(recording,first,last,raw=False,mask_contact=True,display_config=None):
     from .processing import scale_and_signs
     from .contact import channel_available
     r=recording;factor,signs=scale_and_signs(r)
-    source=r.raw if raw else review_counts(r) if completed(r) else r.filtered
+    source=r.raw if raw else review_counts(r,display_config) if completed(r) else r.filtered
     native=source[first:last].astype(float)*np.asarray(signs)
     result=six_leads(native)*factor
     modes=r.lead_modes[first:last]

@@ -38,3 +38,10 @@ def isolate_qt_worker_and_clean_widgets(monkeypatch,qt_application):
         if hasattr(widget,'dirty'):widget.dirty=False
         widget.close()
     qt_application.processEvents()
+    # Dispose closed Qt trees on their owning thread, before a later analysis
+    # worker can trigger Python's cyclic GC for a previous test's UI objects.
+    for widget in widgets:
+        for worker in widget.findChildren(QThread):
+            if worker.isRunning():worker.requestInterruption();worker.wait(15000)
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)

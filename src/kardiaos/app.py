@@ -71,14 +71,13 @@ class Window(QMainWindow):
     def __init__(self, demo=False, diagnostic=False, settings=None):
         super().__init__()
         self.demo, self.diagnostic = demo, diagnostic
-        self.setWindowTitle("KardiaOS 0.10.0" + (" — demonstração sintética" if demo else ""))
+        self.setWindowTitle("KardiaOS 0.11.0" + (" — demonstração sintética" if demo else ""))
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "app.svg")))
         self.resize(1440, 920)
         self.setMinimumSize(1080, 760)
         self.settings = settings if settings is not None else QSettings("KardiaOS", "KardiaOS")
         self._preferences_ready=False
         self._analysis_thread=None;self._analysis_pending=False;self._closing_analysis=False
-        self._preview_seen=set();self._preview_pending=None;self._auto_preview=None
         self._analysis_timer=QTimer(self);self._analysis_timer.setSingleShot(True);self._analysis_timer.setInterval(400);self._analysis_timer.timeout.connect(self.start_background_analysis)
         self.recording = None
         self.stream = None
@@ -141,6 +140,25 @@ class Window(QMainWindow):
         for button in (self.open_button, self.save_button, self.pdf_button, self.print_button):
             toolbar.addWidget(button)
         outer.addLayout(toolbar)
+        self.measure_panel=QWidget();panel=QVBoxLayout(self.measure_panel);panel.setContentsMargins(0,0,0,0);panel.setSpacing(6)
+        self.analysis_summary=label('Análise automática · aguardando captura',wrap=True)
+        self.analysis_summary.setStyleSheet('font-size:15px;font-weight:600');panel.addWidget(self.analysis_summary)
+        self.analysis_findings=label('',wrap=True);self.analysis_findings.hide();panel.addWidget(self.analysis_findings)
+        self.analysis_pending=label('', 'muted', True);self.analysis_pending.hide();panel.addWidget(self.analysis_pending)
+        metric_row=QHBoxLayout();self.measure_values={}
+        for key,title in [('heart_rate','FC'),('pr','PR'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF'),('p_duration','Duração de P')]:
+            column=QVBoxLayout();column.setSpacing(2);column.addWidget(label(title,'muted'))
+            value=label('—');value.setStyleSheet('font-size:17px;font-weight:600');column.addWidget(value)
+            self.measure_values[key]=value;metric_row.addLayout(column,1)
+        panel.addLayout(metric_row)
+        context_row=QHBoxLayout();context_row.addWidget(label('Idade','muted'))
+        self.age=QSpinBox();self.age.setRange(-1,120);self.age.setSpecialValueText('Não informada');self.age.setValue(-1);self.age.setSuffix(' anos');self.age.setKeyboardTracking(False);context_row.addWidget(self.age)
+        context_row.addWidget(label('Sexo de referência','muted'));self.sex=QComboBox()
+        for text,value in [('Não informado',None),('Masculino','male'),('Feminino','female')]:self.sex.addItem(text,value)
+        context_row.addWidget(self.sex);context_row.addStretch()
+        self.research_button=QPushButton('Detalhes da análise');self.research_button.clicked.connect(self.open_research);context_row.addWidget(self.research_button)
+        panel.addLayout(context_row);outer.addWidget(self.measure_panel)
+        self.age.valueChanged.connect(self.clinical_context_changed);self.sex.currentIndexChanged.connect(self.clinical_context_changed)
 
         body = QHBoxLayout()
         body.setSpacing(20)
@@ -157,7 +175,6 @@ class Window(QMainWindow):
         self.paper_scroll.setWidget(self.paper);chart_column.addWidget(self.paper_scroll,1)
         self.paper_note = label("* Amplitude estimada. Grade calculada pelas dimensões físicas do monitor.", "muted", True)
         chart_column.addWidget(self.paper_note)
-        self.analysis_summary=label("", "muted", True);self.analysis_summary.hide();chart_column.addWidget(self.analysis_summary)
         playback = QHBoxLayout()
         self.play_button = QPushButton("Reproduzir")
         self.play_button.clicked.connect(self.replay)
@@ -185,9 +202,6 @@ class Window(QMainWindow):
         sidebar.addWidget(self.detail)
         self.metrics = label("Nenhuma amostra recebida", "muted", True)
         sidebar.addWidget(self.metrics)
-        self.research_button = QPushButton("Análise automática")
-        self.research_button.clicked.connect(self.open_research)
-        sidebar.addWidget(self.research_button)
         self.autorun=QCheckBox("Analisar ao concluir");self.autorun.setChecked(self.settings.value("research/autorun",True,type=bool));sidebar.addWidget(self.autorun)
         sidebar.addSpacing(8)
         rule = QFrame()
@@ -204,7 +218,7 @@ class Window(QMainWindow):
         self.auto.toggled.connect(self.auto_changed)
         sidebar.addWidget(self.auto)
         self.base = self.combo(sidebar, "Linha de base", [("Preservar", 0), ("0,05 Hz · leve", .05), ("0,5 Hz · padrão", .5), ("1 Hz · intensa", 1)], 2)
-        self.smooth = self.combo(sidebar, "Suavização", [("Desligada", 0), ("25 Hz · intensa", 25), ("40 Hz · padrão", 40), ("80 Hz · leve", 80)], 2)
+        self.smooth = self.combo(sidebar, "Suavização", [("Desligada", 0), ("25 Hz · intensa", 25), ("40 Hz · moderada", 40), ("80 Hz · leve", 80)], 1)
         self.notch = self.combo(sidebar, "Interferência elétrica", [("Desligada", 0), ("50 Hz", 50), ("60 Hz", 60)], 2)
         for combo in (self.base, self.smooth, self.notch):
             combo.currentIndexChanged.connect(self.manual_filter)
@@ -231,7 +245,7 @@ class Window(QMainWindow):
         self.cal_button.clicked.connect(self.calibrate)
         sidebar.addWidget(self.cal_button)
         sidebar.addStretch(1)
-        sidebar.addWidget(label("Detalhes do perfil em Análise > Detalhes técnicos.", "muted", True))
+        sidebar.addWidget(label("Perfil e referências em Detalhes da análise > Proveniência.", "muted", True))
         side_scroll = QScrollArea()
         side_scroll.setFrameShape(QFrame.Shape.NoFrame)
         side_scroll.setWidgetResizable(True)
@@ -246,7 +260,7 @@ class Window(QMainWindow):
         self.tick_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.tick_timer.timeout.connect(self.tick)
         self.tick_timer.start(16)
-        for combo,key,default in ((self.base,'filters/baseline',.5),(self.smooth,'filters/lowpass',40),(self.notch,'filters/notch',60),(self.speed,'display/speed',25),(self.gain,'display/gain',10)):
+        for combo,key,default in ((self.base,'filters/baseline',.5),(self.smooth,'display/lowpass',25),(self.notch,'filters/notch',60),(self.speed,'display/speed',25),(self.gain,'display/gain',10)):
             combo.blockSignals(True);combo.setCurrentIndex(max(0,combo.findData(float(self.settings.value(key,default)))));combo.blockSignals(False)
         self.auto.blockSignals(True);self.auto.setChecked(self.settings.value('filters/auto',False,type=bool));self.auto.blockSignals(False)
         self.duration.setValue(int(self.settings.value('capture/duration',30)))
@@ -311,10 +325,10 @@ class Window(QMainWindow):
             combo.blockSignals(True)
             combo.setCurrentIndex(combo.findData(value))
             combo.blockSignals(False)
-        if self.recording and self.recording.config != config:
+        self.paper.display_config=config
+        if self.recording and self.recording.meta.get('end') is None and self.recording.config != config:
             self.recording.configure(config)
             self.dirty = True
-            self.schedule_analysis()
         self.save_preferences()
         delay = Processor(config).delay_ms()
         self.latency.setText(f"Filtro: ~{delay:.0f} ms a 10 Hz\nBuffer visual: 60 ms. Latência do aparelho não medida.")
@@ -349,8 +363,10 @@ class Window(QMainWindow):
         self.replaying = False
         self._analysis_timer.stop()
         if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
-        self.analysis_summary.hide()
+        self.refresh_measure_panel()
         self.recording = Recording(self.demo)
+        self.recording.meta['clinical_context']=self.clinical_context()
+        self.paper.analysis=None
         set_profile(self.recording,self.profile_combo.currentData())
         self.recording.meta["duration_requested"] = self.duration.value()
         self.recording.meta["mv_per_count"] = float(self.settings.value("amplitude/factor", MV_PER_COUNT))
@@ -532,7 +548,8 @@ class Window(QMainWindow):
         self.duration.setEnabled(not self.live)
         self.open_button.setEnabled(not self.live)
         self.save_button.setEnabled(have and not self.live)
-        self.research_button.setEnabled(not self.live)
+        self.research_button.setEnabled(stable and not self.live)
+        self.age.setEnabled(not self.live);self.sex.setEnabled(not self.live)
         self.pdf_button.setEnabled(stable and not self.live)
         self.print_button.setEnabled(stable and not self.live)
         self.play_button.setEnabled(stable and not self.live)
@@ -590,7 +607,8 @@ class Window(QMainWindow):
             self.paper.recording = recording
             self.paper.cursor = recording.last_time
             self.paper.overlay = "" if recording.meta.get("start") is not None else "Captura sem trecho estabilizado"
-            self.apply_filters(recording.config)
+            self.apply_filters(FilterConfig(self.base.currentData(),self.smooth.currentData(),self.notch.currentData()))
+            self.sync_clinical_context();self.refresh_measure_panel()
             self.dirty = False
             self.replaying = False
             self.set_state("Captura carregada", "Dados sintéticos." if recording.meta.get("synthetic") else "Reprodução local. Você pode ajustar os filtros sem alterar o bruto.")
@@ -601,16 +619,50 @@ class Window(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Captura inválida", str(exc))
 
+    def clinical_context(self):
+        return dict(age_years=self.age.value() if self.age.value()>=0 else None,sex=self.sex.currentData())
+
+    def sync_clinical_context(self):
+        from .rule_analysis import context
+        values=context(self.recording)
+        self.age.blockSignals(True);self.sex.blockSignals(True)
+        self.age.setValue(int(values['age_years']) if values['age_years'] is not None else -1)
+        self.sex.setCurrentIndex(max(0,self.sex.findData(values['sex'])))
+        self.age.blockSignals(False);self.sex.blockSignals(False)
+
+    def clinical_context_changed(self,*_):
+        if self.recording is None:return
+        self.recording.meta['clinical_context']=self.clinical_context();self.dirty=True
+        self.schedule_analysis(force=True)
+
+    def refresh_measure_panel(self,result=None):
+        classification=(result or {}).get('classification',{})
+        self.analysis_summary.setText(classification.get('summary') or (result or {}).get('reason') or ('Análise automática indisponível; consulte os detalhes.' if result else 'Análise automática · aguardando captura'))
+        findings=[item['label'] for item in classification.get('findings',[])]
+        self.analysis_findings.setText('; '.join(findings[:2])+(f'; mais {len(findings)-2} nos detalhes.' if len(findings)>2 else ''))
+        self.analysis_findings.setVisible(bool(findings))
+        from .analysis_presentation import pending_messages
+        pending=pending_messages(classification,compact=True)
+        text='Pendências: '+' '.join(pending[:2])+ (f' Mais {len(pending)-2} nos detalhes.' if len(pending)>2 else '') if pending else ''
+        self.analysis_pending.setText(text);self.analysis_pending.setToolTip('\n'.join(pending));self.analysis_pending.setVisible(bool(text))
+        metrics=(result or {}).get('measurements',{}).get('metrics',{})
+        for key,widget in self.measure_values.items():
+            metric=metrics.get(key,{});value=metric.get('value')
+            widget.setText(f"{value:g} {metric.get('unit','')}" if value is not None else '—')
+            widget.setToolTip(metric.get('reason') or ('Estimativa automática; baixa confiança.' if metric.get('status')=='exploratory_low_confidence' else ''))
+        window=(result or {}).get('report_window')
+        self.measure_panel.setToolTip(f"Trecho do laudo: {window['offset_seconds']:g}–{window['offset_seconds']+window['duration_seconds']:g} s. Medidas da gravação completa." if window else '')
+
     def save_preferences(self,*_):
         if not self._preferences_ready or self.demo:return
         for key,value in [('research/profile',self.profile_combo.currentData()),('research/autorun',self.autorun.isChecked()),
-            ('filters/auto',self.auto.isChecked()),('filters/baseline',self.base.currentData()),('filters/lowpass',self.smooth.currentData()),('filters/notch',self.notch.currentData()),
+            ('filters/auto',self.auto.isChecked()),('filters/baseline',self.base.currentData()),('display/lowpass',self.smooth.currentData()),('filters/notch',self.notch.currentData()),
             ('display/speed',self.speed.currentData()),('display/gain',self.gain.currentData()),('display/raw',self.raw_check.isChecked()),('capture/duration',self.duration.value())]:self.settings.setValue(key,value)
 
     def profile_changed(self,*_):
         self.save_preferences()
         if self.recording is not None:
-            set_profile(self.recording,self.profile_combo.currentData());self.dirty=True;self.paper.update();self.schedule_analysis()
+            set_profile(self.recording,self.profile_combo.currentData());self.dirty=True;self.paper.update();self.schedule_analysis(force=True)
 
     def autorun_changed(self,*_):
         self.save_preferences()
@@ -619,14 +671,14 @@ class Window(QMainWindow):
             if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
         else:self.schedule_analysis()
 
-    def schedule_analysis(self):
-        if self.live or self.demo or not self.autorun.isChecked():return
+    def schedule_analysis(self,force=False):
+        if self.live or not force and not self.autorun.isChecked():return
         if self.recording is None or self.recording.meta.get('start') is None:return
-        self.paper.analysis=None;self.paper.update();self._preview_pending=None
+        self.paper.analysis=None;self.paper.update();self.refresh_measure_panel()
         self.analysis_summary.setText('Preparando análise local.');self.analysis_summary.show();self._analysis_timer.start()
 
     def start_background_analysis(self):
-        if self.live or self.recording is None or self._closing_analysis or not self.autorun.isChecked():return
+        if self.live or self.recording is None or self._closing_analysis:return
         if self._analysis_thread is not None and self._analysis_thread.isRunning():
             self._analysis_pending=True;self._analysis_thread.requestInterruption();return
         self._analysis_pending=False;r=self.recording
@@ -642,47 +694,14 @@ class Window(QMainWindow):
         if self.recording is not record:return
         if cache_analysis(record,result):
             self.paper.analysis=result;self.paper.update()
-            lines=[]
-            if not result.get('trace_only') and result.get('reportable'):
-                from .report import measurement_line
-                window=result['report_window'];start=window['offset_seconds'];stop=start+window['duration_seconds']
-                lines=[f'Trecho do laudo: {start:g}–{stop:g} s',result.get('qtc_label','QTc: erro na estimativa'),measurement_line(result)]
-                if result.get('classification'):lines.append(result['classification']['summary'])
-                lines.extend(item['label']+' · '+item['model'] for item in result.get('hypotheses',[])[:3])
-            self.analysis_summary.setText('\n'.join(lines) or result.get('reason') or 'Somente traçado; qualidade insuficiente para análise.')
-            self.analysis_summary.show();self._preview_pending=(record,result,self)
+            self.refresh_measure_panel(result)
             self.latency.setText('Revisão: filtros de fase zero.\nAo vivo: filtros causais e buffer de 60 ms.')
-            if self._analysis_thread is None or not self._analysis_thread.isRunning():QTimer.singleShot(0,self.open_pending_preview)
         elif result.get('status')=='cancelled':self.analysis_summary.setText('Análise interrompida.')
         else:self.analysis_summary.setText(result.get('reason','Processamento alterado; reavaliando o registro.'))
 
     def background_finished(self):
         if self._closing_analysis:self.close()
         elif self._analysis_pending:self._analysis_timer.start()
-        else:QTimer.singleShot(0,self.open_pending_preview)
-
-    def auto_preview_result(self,record,result,preview_parent=None):
-        self.background_result(record,result)
-        if self._preview_pending is not None:self._preview_pending=(record,result,preview_parent or self)
-
-    def open_pending_preview(self):
-        pending=self._preview_pending;self._preview_pending=None
-        if pending is None or self.live or self._closing_analysis or self._analysis_pending:return
-        record,result,preview_parent=pending
-        if self.recording is not record or result.get('source_key')!=analysis_key(record) or not result.get('reportable') or result.get('status')!='completed':return
-        token=(result['source_key'],result.get('run_id'))
-        if token in self._preview_seen:return
-        if self._auto_preview is not None and self._auto_preview.isVisible():
-            self._preview_pending=pending;return
-        from .preview import PrintPreview
-        preview=PrintPreview(record,self.speed.currentData(),self.gain.currentData(),self.raw_check.isChecked(),preview_parent,analysis=result)
-        self._preview_seen.add(token);self._auto_preview=preview
-        preview.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        preview.finished.connect(self.auto_preview_closed)
-        preview.show()
-
-    def auto_preview_closed(self,*_):
-        self._auto_preview=None;QTimer.singleShot(0,self.open_pending_preview)
 
     def open_research(self):
         if self.live:
@@ -694,7 +713,13 @@ class Window(QMainWindow):
         return pdf_bytes(self.recording, self.speed.currentData(), self.gain.currentData(), self.raw_check.isChecked())
 
     def export_pdf(self):
-        self.print_report()
+        filename,_=QFileDialog.getSaveFileName(self,'Exportar PDF','ecg.pdf','PDF (*.pdf)')
+        if not filename:return
+        try:
+            Path(filename).write_bytes(self.report())
+            self.statusBar().showMessage('PDF exportado.',5000)
+        except (OSError,ValueError,RuntimeError) as exc:
+            QMessageBox.warning(self,'Falha na exportação',str(exc))
 
     def print_report(self):
         from .preview import PrintPreview
@@ -750,7 +775,7 @@ class Window(QMainWindow):
             if self.recording:
                 self.recording.meta.update(mv_per_count=factor.value(), amplitude_verified=verified.isChecked())
                 self.dirty = True
-                self.schedule_analysis()
+                self.schedule_analysis(force=True)
             self.load_screen()
 
     def closeEvent(self, event):

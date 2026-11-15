@@ -18,7 +18,7 @@ def check():
         w=Window(demo=True,settings=QSettings(str(Path(folder)/'prefs.ini'),QSettings.Format.IniFormat));w.tick_timer.stop();w.start()
         t=time.monotonic()-12
         for i in range(0,3600,9):w.accept_samples(t+i/300,synthetic_pairs(i,9))
-        w.stop();assert w.recording.n==3600 and w.recording.meta['start'] is not None
+        w.stop();w._analysis_timer.stop();assert w.recording.n==3600 and w.recording.meta['start'] is not None
         path=Path(folder)/'fixture.kardia';save_recording(path,w.recording);r=load_recording(path)
         assert r.n==3600 and r.meta['synthetic']
         analysis=dict(status='completed',mode='normal',source_key=analysis_key(r),report_window=trace_window(r),reportable=True,trace_only=True,
@@ -55,7 +55,7 @@ def check_automatic():
     before=record.raw[:record.n].copy();set_profile(record,EMPIRICAL);record.configure(DEFAULT_FILTERS)
     began=time.perf_counter()
     result=automatic_analysis(record)
-    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-1'
+    assert result['status']=='completed' and not result['scenarios'] and result['classification']['version']=='limb-rules-2'
     assert all(v['scores'] and v['status']=='synthetic' for v in result['scenarios'])
     assert result['qt']['source']=='global_medians_only' and not result['qt']['neural_segmenter_used']
     assert len(result['representative'])==6

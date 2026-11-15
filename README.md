@@ -81,7 +81,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.10.0 exploratória)
+## Análise automática local (0.11.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -90,10 +90,15 @@ visível. Eles continuam na sequência usada para frequência cardíaca e RR.
 
 As medianas por derivação recebem suavização limitada e sustentam os limites globais de P, QRS e T e as
 medidas P, QRS, PR, QT e QTc. Os mesmos marcadores aparecem nas curvas, inclusive
-quando outra derivação sustenta o limite. A aba Limites mostra as medianas e os
+quando outra derivação sustenta o limite. A aba Curvas e marcos mostra as medianas e os
 batimentos alinhados. Uma medida indisponível não esconde a curva. Não há retorno
 à delineação de batimentos isolados nem participação do CompactSegmenter082 nas
 medidas operacionais. QTc usa Fridericia, com condições explícitas de aplicação.
+
+O painel inicial mostra classificação, FC, PR, QRS, QT/QTc e duração de P.
+Idade e sexo opcionais ficam no painel e atualizam a análise automaticamente.
+A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
+A suavização visual padrão é intensa (25 Hz), independente das medidas.
 
 A classificação padrão usa regras locais de ritmo, intervalos e morfologia,
 com critérios e motivos de indisponibilidade visíveis. Idade e sexo são opcionais;
@@ -111,7 +116,8 @@ validação clínica. Os valores permanecem exploratórios; amplitude e polarida
 não recebem validação automática. No papel não se imprime QT bruto.
 [Método, exclusões e limites da versão 0.9.0](docs/global-medians-090.md).
 [Correção dos marcos e suavização na versão 0.9.1](docs/median-landmarks-091.md).
-[Marcos, regras, dados opcionais e limites da versão 0.10.0](docs/rules-0100.md).
+[Marcos, regras e limites da versão 0.10.0](docs/rules-0100.md).
+[Painel inicial, classificação com pendências e fluxos da versão 0.11.0](docs/ui-flows-0110.md).
 [Validação histórica do motor temporal](docs/measurement-validation.md).
 
 ## Desenvolvimento

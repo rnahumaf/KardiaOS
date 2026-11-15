@@ -13,7 +13,7 @@ def test_one_sheet_has_same_window_top_three_without_scores_or_raw_qt():
     r=signal_record();a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
     assert len(plan['rows'])==2 and plan['end']-plan['start']==10
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    for term in ['FC: 60 bpm','P:','QRS:','global; Fridericia','Análise automática inconclusiva']:assert term in text
+    for term in ['FC: 60 bpm','P:','QRS:','global; Fridericia','Sinusal, regular, normal nos critérios avaliados']:assert term in text
     assert 'QT:' not in text and '0.2500' not in text
     assert not a['scenarios']
     assert a['classification']['summary'] in text

@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 from .median_landmarks import mad
 from .orientation import normal_signs
 
-VERSION = 'limb-rules-1'
+VERSION = 'limb-rules-2'
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
 
 
@@ -146,11 +146,11 @@ def classify(recording, measurement, representatives):
                 row.update(status='unavailable',reason='Convenção elétrica não referenciada; selecione explicitamente o perfil empírico para usar seus pressupostos.')
     findings=[r for r in rows if r['status']=='detected']
     missing=[r for r in rows if r['required_for_normal'] and r['status']=='unavailable']
-    if not findings and not missing and sinus and regular:
-        summary='Ritmo sinusal, regular, sem alterações pelos critérios avaliados (análise automática)'
+    if not findings and sinus and regular:
+        summary='Sinusal, regular, normal nos critérios avaliados'
         status='no_findings'
     elif findings:
-        summary='Análise automática inconclusiva; há achados parciais.' if missing else 'Achados na análise automática; consulte os critérios.'
+        summary='Achados na análise automática; consulte os critérios.'
         status='partial' if missing else 'findings'
     else: summary='Análise automática inconclusiva';status='inconclusive'
     return dict(version=VERSION,status=status,summary=summary,context=c,rules=rows,features=data,
