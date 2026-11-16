@@ -164,6 +164,16 @@ class Window(QMainWindow):
         self.duration.setValue(30)
         self.duration.setSuffix(" s")
         toolbar.addWidget(self.duration)
+        leads_label = label("Derivações", "muted")
+        self.capture_mode = QComboBox()
+        self.capture_mode.addItem("DI", "di")
+        self.capture_mode.addItem("6 derivações", "six")
+        self.capture_mode.setCurrentIndex(1 if demo else 0)
+        self.capture_mode.setAccessibleName("Derivações da nova captura")
+        self.capture_mode.setToolTip("DI usa os dois eletrodos superiores. Selecione 6 derivações ao usar também o inferior.")
+        leads_label.setBuddy(self.capture_mode)
+        toolbar.addWidget(leads_label)
+        toolbar.addWidget(self.capture_mode)
         toolbar.addStretch()
         self.open_button = QPushButton("Abrir captura")
         self.open_button.clicked.connect(self.open_recording)
@@ -230,9 +240,14 @@ class Window(QMainWindow):
         self.state_label.setStyleSheet('font-size:12px;')
         self.timer_label = label("00:00.0", "timer")
         acquisition_row.addWidget(self.timer_label);acquisition_row.addWidget(self.state_label,1);sidebar.addLayout(acquisition_row)
-        self.state_label.setToolTip("Feche o Kardia no celular. Mantenha os dedos nos eletrodos superiores e o inferior na perna esquerda.")
+        self.state_label.setToolTip("Feche o Kardia no celular antes de iniciar a captura.")
         self.timer_label.setToolTip("Nenhuma amostra recebida")
         self.autorun=QCheckBox("Analisar ao concluir");self.autorun.setChecked(self.settings.value("research/autorun",True,type=bool));sidebar.addWidget(self.autorun)
+        self.review_di_button = QPushButton("Revisar como DI")
+        self.review_di_button.setCheckable(True)
+        self.review_di_button.setToolTip("O traçado e a análise usam DI nesta sessão. O arquivo salvo mantém os dados originais.")
+        self.review_di_button.toggled.connect(self.review_as_di)
+        sidebar.addWidget(self.review_di_button)
         sidebar.addSpacing(2)
         rule = QFrame()
         rule.setObjectName("rule")
@@ -412,7 +427,8 @@ class Window(QMainWindow):
         self._analysis_timer.stop()
         if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
         self.refresh_measure_panel()
-        self.recording = Recording(self.demo)
+        mode = self.capture_mode.currentData()
+        self.recording = Recording(self.demo, acquisition_mode=mode)
         self.recording.meta['clinical_context']=self.clinical_context()
         self.paper.analysis=None
         set_profile(self.recording,self.profile_combo.currentData())
@@ -435,7 +451,10 @@ class Window(QMainWindow):
         self.demo_clock = time.monotonic()
         self.last_auto = self.last_stats = 0
         self.timer_label.setText("00:00.0")
-        self.set_state("Procurando o 6L", "Dois contatos superiores: D1. Apoie também o eletrodo inferior na perna esquerda para seis derivações.")
+        placement = ("Toque os dois eletrodos superiores." if mode == 'di'
+                     else "Toque os superiores e apoie o eletrodo inferior na perna esquerda.")
+        self.set_state("Procurando o 6L", placement)
+        self.paper.overlay_detail = placement
         if not self.demo:
             self.stream = Stream()
             self.stream.start()
@@ -455,13 +474,18 @@ class Window(QMainWindow):
         window = r.raw[max(0, r.n - FS):r.n]
         available = channel_available(r.raw[old_n:r.n])
         good = bool(available[:, 0].all()) and contact_ok(window[:, :1])
-        second_good = bool(available[:, 1].all()) and contact_ok(window[:, 1:])
+        second_good = not r.di_only and bool(available[:, 1].all()) and contact_ok(window[:, 1:])
         self.second_stable = self.second_stable + len(samples) if second_good and not gap else 0
         if self.second_stable < FS // 2:
             r.lead_modes[old_n:r.n] = np.minimum(r.lead_modes[old_n:r.n], 1)
         self.stable = self.stable + len(samples) if good and not gap else 0
         ready = r.n >= FS and self.stable >= FS // 2
-        description = "Seis derivações disponíveis. Mantenha os três contatos." if r.mode_at() == 6 else "Somente D1 disponível. Para seis derivações, confira o contato inferior com a perna esquerda."
+        if r.di_only:
+            description = "Captura em DI. Mantenha os dois contatos superiores."
+        elif r.mode_at() == 6:
+            description = "Seis derivações disponíveis. Mantenha os três contatos."
+        else:
+            description = "Somente DI disponível. Confira o contato inferior com a perna esquerda."
         if r.meta["start"] is None:
             self.set_state("Estabilizando o sinal", "Verificando contato e descartando o transiente inicial da exibição.")
             if ready:
@@ -594,6 +618,7 @@ class Window(QMainWindow):
         self.start_button.setEnabled(not self.live)
         self.stop_button.setEnabled(self.live and not self.pending_finish)
         self.duration.setEnabled(not self.live)
+        self.capture_mode.setEnabled(not self.live)
         self.open_button.setEnabled(not self.live)
         self.save_button.setEnabled(have and not self.live)
         self.research_button.setEnabled(stable and not self.live)
@@ -604,6 +629,23 @@ class Window(QMainWindow):
         self.seek.setEnabled(stable and not self.live)
         self.cal_button.setEnabled(not self.live)
         self.profile_combo.setEnabled(not self.live)
+        r = self.recording
+        can_review = bool(stable and not self.live and r.meta.get('end') is not None
+                          and r.meta.get('acquisition_mode') != 'di' and np.any(r.lead_modes[:r.n] == 6))
+        self.review_di_button.blockSignals(True)
+        self.review_di_button.setChecked(bool(can_review and r.review_as_di))
+        self.review_di_button.setVisible(can_review)
+        self.review_di_button.setEnabled(can_review)
+        self.review_di_button.blockSignals(False)
+
+    def review_as_di(self, enabled):
+        r = self.recording
+        if r is None or self.live or r.meta.get('end') is None or enabled == r.review_as_di:
+            return
+        r.review_as_di = enabled
+        self.paper.analysis = None
+        self.paper.update()
+        self.schedule_analysis(force=True)
 
     def replay(self):
         if not self.recording or self.live:

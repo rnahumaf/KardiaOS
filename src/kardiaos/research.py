@@ -68,7 +68,7 @@ def inspect_window(recording, model_key, offset=0.0, *, require_calibration=True
         reasons.append('Há lacuna de transporte no trecho; selecione outra janela contínua.')
     if not r.quality[left:right].all():
         reasons.append('O trecho contém amostras sem qualidade/contato aceitos.')
-    modes = r.lead_modes[left:right]
+    modes = r.effective_modes(left,right)
     if not np.all(modes >= (1 if len(model['leads']) == 1 else 6)):
         reasons.append('Derivações necessárias indisponíveis no trecho: ' + ', '.join(model['leads']) + '.')
     channels = 1 if len(model['leads']) == 1 else 2

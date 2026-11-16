@@ -14,10 +14,10 @@ from .median_landmarks import smooth_median, delineate_medians
 from .processing import scale_and_signs
 from .signal import six_leads
 from .measurement_engine import empty
-from .rhythm_analysis import analyze_premature, p_association, similarity
+from .rhythm_analysis import analyze_premature, p_association, rhythm_coverage, similarity
 
 FS = 300
-VERSION = 'global-median-6'
+VERSION = 'global-median-7'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -60,7 +60,7 @@ def segments(recording, channels):
     """Never join transport gaps, contact loss or unavailable native channels."""
     r = recording
     t = r.times[:r.n]
-    good = (r.quality[:r.n] & (r.lead_modes[:r.n] >= (6 if channels == 2 else 1))
+    good = (r.quality[:r.n] & (r.effective_modes() >= (6 if channels == 2 else 1))
             & np.all((r.raw[:r.n, :channels] & 3) == 0, axis=1)
             & np.all(np.abs(r.raw[:r.n, :channels].astype(float)) < 32760, axis=1))
     good &= (t >= float(r.meta['start']) - 1e-7) & (t <= float(r.meta.get('end') or r.last_time) + 1e-7)
@@ -170,19 +170,23 @@ def global_boundaries(medians, anchor, rr):
 def analyze(recording, cancelled=lambda: False):
     from .automatic_analysis import Cancelled
     r = recording
-    channels = 2 if np.any(r.lead_modes[:r.n] == 6) else 1
+    modes = r.effective_modes()
+    six_segments = segments(r, 2) if np.any(modes == 6) else []
+    channels = 2 if six_segments else 1
     names = LEADS if channels == 2 else ['I']
     factor, signs = scale_and_signs(r)
     candidates, peaks_all, rr_all, incomplete, unusable = [], [], [], [], []
     rr_pairs = []
+    qualified_segments = []
     # Fixed shared crop; shifts never stretch P, QRS, T or an RR interval.
     pre, post = 105, 180
-    for a, b in segments(r, channels):
+    for a, b in six_segments if channels == 2 else segments(r, 1):
         if cancelled(): raise Cancelled()
         native = r.raw[a:b, :channels].astype(float) * np.asarray(signs[:channels])
         if not joint_quality(native):
             unusable.append(dict(first_sample=a,last_sample_exclusive=b,reason='Segmento sem sinal variável suficiente ou com ruído de alta frequência excessivo.'))
             continue
+        qualified_segments.append((a, b))
         peaks, align = shared_peaks(native)
         peaks_all.extend((peaks + a).tolist())
         rr_all.extend((np.diff(peaks) / FS).tolist())
@@ -204,10 +208,10 @@ def analyze(recording, cancelled=lambda: False):
         peaks_all, rr_all, rr_pairs = [], [], []
         for a, b in segments(r, 1):
             if cancelled(): raise Cancelled()
-            cuts = [a, *list(a + np.flatnonzero(np.diff((r.lead_modes[a:b] == 6).astype(int))) + 1), b]
+            cuts = [a, *list(a + np.flatnonzero(np.diff((modes[a:b] == 6).astype(int))) + 1), b]
             for lo, hi in zip(cuts[:-1], cuts[1:]):
                 if hi - lo < 2 * FS: continue
-                count = 2 if np.all(r.lead_modes[lo:hi] == 6) and np.all((r.raw[lo:hi, 1] & 3) == 0) and np.all(abs(r.raw[lo:hi,1].astype(float))<32760) else 1
+                count = 2 if np.all(modes[lo:hi] == 6) and np.all((r.raw[lo:hi, 1] & 3) == 0) and np.all(abs(r.raw[lo:hi,1].astype(float))<32760) else 1
                 native = r.raw[lo:hi, :count].astype(float) * np.asarray(signs[:count])
                 if not joint_quality(native): continue
                 peaks, _ = shared_peaks(native)
@@ -215,7 +219,9 @@ def analyze(recording, cancelled=lambda: False):
                 rr_pairs.extend([[int(x+lo),int(y+lo)] for x,y in zip(peaks[:-1],peaks[1:])])
     rr = np.asarray(rr_all, dtype=float)
     median_rr = float(np.median(rr)) if len(rr) else None
-    rhythm = dict(detected_peaks=peaks_all, rr_seconds=rr_all, rr_pairs=rr_pairs, method='RR originais, inclusive batimentos excluídos da mediana; sem atravessar lacunas')
+    rhythm = dict(detected_peaks=peaks_all, rr_seconds=rr_all, rr_pairs=rr_pairs,
+                  coverage=rhythm_coverage(r, qualified_segments),
+                  method='RR originais, inclusive batimentos excluídos da mediana; sem atravessar lacunas')
     audit = dict(version=VERSION, scope='whole_recording', channels=names, detected_beats=len(peaks_all),
                  accepted_beats=len(accepted), excluded=excluded, incomplete=incomplete, unusable_segments=unusable,
                  exclusions_scope='all_leads', maximum_shift_samples=12,
@@ -255,7 +261,8 @@ def analyze(recording, cancelled=lambda: False):
                 medians[lead][kind], smoothing[lead][kind] = smooth_median(medians[lead][kind])
         if len(accepted) >= 3 and median_rr:
             points, sources, local = global_boundaries(medians, pre, median_rr)
-            rhythm['p_association'] = p_association(stacks['pt'], medians, points)
+            rhythm['p_association'] = p_association(stacks['pt'], medians, points,
+                                                   [c['start'] for c in accepted])
         for ch, lead in enumerate(names):
             representatives[lead] = dict(unsmoothed_values_mv=unsmoothed[lead]*factor, postprocessing=smoothing[lead], values_mv=medians[lead]['qrs'] * factor, raw_values_mv=medians[lead]['raw'] * factor,
                 pt_values_mv=medians[lead]['pt'] * factor, aligned_beats_mv=stacks['qrs'][:, :, ch] * factor,

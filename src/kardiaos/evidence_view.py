@@ -43,7 +43,7 @@ def evidence_data(recording,result,key,subset=-1):
             variant=classify(recording,dict(m,metrics=metrics),{},feature_data=features,check_stability=False)
             row=next((r for r in variant['rules'] if r['id']==key),row)
     selected=list(dict.fromkeys(row.get('leads',[])+row.get('possible_morphology_leads',[])))
-    if key=='sinus':selected=[l for l in ('I','II','aVR') if l in reps]
+    if key=='sinus':selected=[l for l in c.get('sinus_leads', ('I','II','aVR')) if l in reps]
     reviews = {}
     if key == 'p_onset_review':
         reviews = {v['lead']: v for v in quality.get('p_onset_reviews', []) if v['source'].casefold() == origin.casefold()}
@@ -190,6 +190,8 @@ class EvidencePanel(QWidget):
             group = criterion_group(r)
             prefix = 'Não detectado · ' if group == 'not_detected' else (
                 'Indisponível · ' if r['status'] == 'unavailable' else 'Possível · ' if group == 'review' else '')
+            if r['id'] == 'pr_short' and r.get('possible_context'):
+                prefix = ''
             self.rule_selector.addItem(prefix + r['label'], r['id'])
         self.rule_selector.blockSignals(False)
     def open(self,key):
@@ -228,15 +230,22 @@ class EvidencePanel(QWidget):
         self.data=evidence_data(self.recording,self.result,self.key,self.source_selector.currentData() if self.source_selector.currentData() is not None else -1)
         d=self.data;r=d['row'];rhythm=self.key in RHYTHM_RULES
         state=STATUS.get(r.get('status'),'Evidência de ritmo sinusal')
-        if self.key=='sinus':state='Ritmo de base sinusal' if d['classification'].get('sinus_supported') else 'Origem do ritmo de base inconclusiva'
+        if self.key=='sinus':
+            c = d['classification']
+            state = c.get('sinus_label', 'Ritmo de base sinusal') if c.get('sinus_supported') else 'Origem do ritmo de base inconclusiva'
         if self.key == 'p_onset_review':
             state = 'Instabilidade técnica'
         elif d['subset']>=0:state='Possível na análise completa · '+state.lower()+' neste subconjunto'
-        if r.get('possible_context'):state='Possível · depende do sexo de referência'
+        if r.get('possible_context'):state='PR limítrofe' if self.key == 'pr_short' else 'Possível · depende do sexo de referência'
         if r.get('possible_morphology_leads'):state=('Possível · componentes discretos' if r.get('status')!='detected' and d['subset']<0 else state+' · componentes discretos possíveis')
-        self.caption.setText(state+' · '+d['origin']+'\n'+r.get('criterion','P em I/II/aVR, associação P–QRS e qualidade dos batimentos alinhados.'))
+        leads = '/'.join(d['classification'].get('sinus_leads', ('I','II','aVR')))
+        self.caption.setText(state+' · '+d['origin']+'\n'+r.get('criterion',f'P em {leads}, associação P–QRS e qualidade dos batimentos alinhados.'))
         if r.get('reason'):self.caption.setText(self.caption.text()+'\n'+r['reason'])
         if r.get('interpretation'):self.caption.setText(self.caption.text()+'\n'+r['interpretation'])
+        if self.key == 'pr_short' and r.get('possible_context'):
+            self.caption.setText(self.caption.text()+'\n'+r['possible_context'])
+        if self.key == 'sinus' and d['classification'].get('sinus_limitations'):
+            self.caption.setText(self.caption.text()+'\n'+' '.join(d['classification']['sinus_limitations']))
         self.caption.setToolTip('\n'.join(r.get('limitations',[])))
         if self.key=='sinus' and d['classification'].get('sinus_reasons'):self.caption.setText(self.caption.text()+'\n'+'; '.join(d['classification']['sinus_reasons']))
         self.legend.setText('Traçado DI e RR da gravação completa. Clique em um RR para localizar seu trecho. Âmbar: RR fora da faixa de regularidade.' if rhythm else
@@ -319,7 +328,7 @@ class EvidencePlot(QWidget):
             left, right = max(0, center-48), min(r.n, center+97)
             values = waveform_values(r, left, right, display_config=self.display_config)
             times = (r.times[left:right]-r.times[center])*1000
-            leads = [('DIII', 2), ('aVF', 5)] if r.lead_modes[center] == 6 else [('DI', 0)]
+            leads = [('DIII', 2), ('aVF', 5)] if r.mode_at(r.times[center]) == 6 else [('DI', 0)]
             data = {}
             for lead, ch in leads:
                 y = values[:, ch]

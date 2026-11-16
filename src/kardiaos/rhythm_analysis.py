@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
-from scipy.signal import savgol_filter
+from scipy.signal import detrend, savgol_filter
 
 from .median_landmarks import mad, smooth_median
 from .signal import FS
@@ -15,36 +15,65 @@ def similarity(a, b):
     return float(np.sum(a*b) / denominator) if denominator > 1e-12 else -1.
 
 
-def p_association(stack, medians, points):
+def p_association(stack, medians, points, segment_starts):
     """Compare P shape and timing on the shared QRS clock, without new fiducials."""
-    if len(medians) < 2 or not all(k in points for k in ('pon', 'poff', 'qon')):
+    if 'I' not in medians or len(stack) < 5 or not all(k in points for k in ('pon', 'poff', 'qon')):
         return None
-    left = max(0, points['pon']-6)
-    right = min(points['poff']+7, points['qon']-3)
+    left = max(0, points['pon']-3)
+    right = min(points['poff']+4, points['qon']-3)
     if right-left < 12:
         return None
-    template = np.column_stack([medians[lead]['pt'][left:right] for lead in ('I', 'II')])
-    template -= template.mean(axis=0)
+    leads = ['I', 'II'] if 'II' in medians else ['I']
+    waves = np.column_stack([medians[lead]['pt'] for lead in leads])
+    template = detrend(savgol_filter(waves, 13, 3, axis=0)[left:right], axis=0)
     norm = np.linalg.norm(template)
-    if norm <= 1e-12 or len(stack) < 5:
+    if norm <= 1e-12:
         return None
+    filtered = savgol_filter(stack[:, :, :len(leads)], 13, 3, axis=1)
     shifts = np.arange(max(-9, -left), min(9, points['qon']-3-right)+1)
     scores = []
     for shift in shifts:
-        window = stack[:, left+shift:right+shift, :2]
-        centered = window - window.mean(axis=1, keepdims=True)
+        centered = detrend(filtered[:, left+shift:right+shift], axis=1)
         size = np.linalg.norm(centered, axis=(1, 2))
         score = np.sum(centered*template, axis=(1, 2)) / np.maximum(size*norm, 1e-12)
         scores.append(np.where(size >= .25*norm, score, -1.))
     scores = np.asarray(scores)
     best = np.argmax(scores, axis=0)
     matched = scores[best, np.arange(len(stack))] >= .75
-    delays = shifts[best[matched]]
-    dispersion = float(np.percentile(abs(delays-np.median(delays)), 90)*1000/FS) if len(delays) else None
-    count = int(matched.sum())
-    return dict(evaluated=len(stack), matched=count, fraction=count/len(stack),
-                dispersion_ms=dispersion,
-                supported=bool(count >= .9*len(stack) and dispersion is not None and dispersion <= 20))
+
+    def summarize(eligible):
+        observed = int(eligible.sum())
+        passed = matched & eligible
+        delays = shifts[best[passed]]
+        spread = float(np.percentile(abs(delays-np.median(delays)), 90)*1000/FS) if len(delays) else None
+        return dict(evaluated=observed, matched=len(delays), fraction=len(delays)/observed,
+                    dispersion_ms=spread, supported=len(delays) >= .9*observed and spread is not None and spread <= 20)
+
+    result = summarize(np.ones(len(stack), dtype=bool))
+    segment_starts = np.asarray(segment_starts)
+    groups = []
+    for boundary in np.unique(segment_starts):
+        eligible = segment_starts == boundary
+        if eligible.sum() >= 5:
+            groups.append(dict(summarize(eligible), first_sample=int(boundary)))
+    return dict(result, leads=leads, segments=groups,
+                supported=result['supported'] and all(v['supported'] for v in groups))
+
+
+def rhythm_coverage(recording, qualified_segments):
+    """Measure missing time, including transport gaps not represented in quality.npy."""
+    start = float(recording.meta['start'])
+    end = min(float(recording.meta.get('end') or recording.last_time), recording.last_time) + 1/FS
+    duration = max(end-start, 1/FS)
+    gaps = []
+    previous = start
+    for first, last in qualified_segments:
+        gaps.append(float(recording.times[first]) - previous)
+        previous = float(recording.times[last-1]) + 1/FS
+    gaps.append(end-previous)
+    observed = sum(last-first for first, last in qualified_segments)/FS
+    return dict(seconds=observed, duration_seconds=duration, fraction=min(1., observed/duration),
+                longest_gap_seconds=max(0., *gaps), segments=qualified_segments)
 
 
 def _vector(curves):

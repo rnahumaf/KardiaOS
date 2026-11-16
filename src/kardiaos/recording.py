@@ -14,13 +14,16 @@ from .processing import scale_and_signs, profile_info, set_profile
 
 
 class Recording:
-    def __init__(self, synthetic=False):
+    def __init__(self, synthetic=False, acquisition_mode=None):
+        if acquisition_mode not in (None, 'di', 'six'):
+            raise ValueError('Modo de aquisição inválido.')
         capacity = FS * 660
         self.raw = np.empty((capacity, 2), dtype=np.int16)
         self.filtered = np.empty((capacity, 2), dtype=np.float64)
         self.times = np.empty(capacity, dtype=np.float64)
         self.quality = np.zeros(capacity, dtype=bool)
         self.lead_modes = np.zeros(capacity, dtype=np.uint8)
+        self.review_as_di = False
         self.contact = ContactTracker()
         self.n = 0
         self.config = FilterConfig()
@@ -31,6 +34,8 @@ class Recording:
                          amplitude_verified=False, filter_history=[], duration_requested=30,
                          sample_clock="300 Hz nominal; gaps inferred from packet arrival >120 ms",
                          contact_detection="M2 low-two-bits, experimental, labeled 1L/6L evidence")
+        if acquisition_mode is not None:
+            self.meta['acquisition_mode'] = acquisition_mode
         self.last_arrival = None
         self.gaps = 0
 
@@ -51,7 +56,8 @@ class Recording:
         self.times[self.n:end] = start + np.arange(len(samples)) / FS
         self.filtered[self.n:end] = self.processor.process(samples)
         self.quality[self.n:end] = good
-        self.lead_modes[self.n:end] = self.contact.update(samples)
+        modes = self.contact.update(samples)
+        self.lead_modes[self.n:end] = np.minimum(modes, 1) if self.meta.get('acquisition_mode') == 'di' else modes
         self.last_arrival = arrived
         self.n = end
 
@@ -69,11 +75,21 @@ class Recording:
     def last_time(self):
         return float(self.times[self.n - 1]) if self.n else 0.0
 
+    @property
+    def di_only(self):
+        return self.review_as_di or self.meta.get('acquisition_mode') == 'di'
+
+    def effective_modes(self, first=0, last=None):
+        """Availability in the current view, separate from the saved audit."""
+        modes = self.lead_modes[first:self.n if last is None else last]
+        return np.minimum(modes, 1) if self.di_only else modes
+
     def mode_at(self, timestamp=None):
         if not self.n:
             return 0
         index = self.n - 1 if timestamp is None else max(0, min(self.n - 1, int(np.searchsorted(self.times[:self.n], timestamp, side="right")) - 1))
-        return int(self.lead_modes[index])
+        mode = int(self.lead_modes[index])
+        return min(mode, 1) if self.di_only else mode
 
     def lead_values(self, first=0, last=None, raw=False):
         """Never derive voltages from a channel flagged as unavailable."""
@@ -140,6 +156,8 @@ def load_recording(path):
     if meta.get("start") is not None and meta.get("end") is not None and meta["start"] > meta["end"]:
         raise ValueError("Fim anterior ao início.")
     config = FilterConfig(**meta["filters"]).validate()
+    if meta.get('acquisition_mode') not in (None, 'di', 'six'):
+        raise ValueError('Modo de aquisição inválido.')
     result = Recording(bool(meta.get("synthetic")))
     result.raw[:n], result.times[:n], result.quality[:n] = raw, times, quality
     modes = arrays.get("lead_modes")

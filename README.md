@@ -7,8 +7,9 @@ reprodução local e relatório A4 paisagem. Não é um produto da AliveCor.
 ## Uso
 
 1. Feche o aplicativo Kardia no celular.
-2. Mantenha os dedos nos eletrodos superiores para D1. Para seis derivações,
-   apoie também o eletrodo inferior na perna esquerda, conforme o fabricante.
+2. No seletor **Derivações**, escolha **DI** para usar os dois eletrodos
+   superiores. Escolha **6 derivações** ao apoiar também o eletrodo inferior
+   na perna esquerda, conforme o fabricante.
 3. Clique em **Iniciar**. O programa procura o aparelho e aguarda contato estável.
 4. O traçado e o cronômetro começam após a verificação inicial. A duração padrão
    é 30 segundos e pode ser alterada antes de iniciar.
@@ -18,6 +19,10 @@ reprodução local e relatório A4 paisagem. Não é um produto da AliveCor.
 6. Ao terminar, salve **.kardia** para preservar o bruto, ou exporte o PDF.
    Uma desconexão preserva o trecho recebido. **Abrir captura** permite reprodução
    e novos ajustes. Iniciar outra captura ou fechar oferece salvar os dados.
+
+**Revisar como DI** restringe a exibição, a análise e o laudo de uma captura
+existente à primeira derivação durante a sessão. Ao reabrir o arquivo, o
+aplicativo usa as derivações registradas nele.
 
 O modo de demonstração é explicitamente sintético. Nunca se mistura a uma sessão BLE.
 
@@ -32,7 +37,7 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
   **Imprimir** e **Exportar PDF** mostram uma janela automática comum de 10 s.
   Seis derivações usam seis linhas sincronizadas; DI isolada usa linhas sucessivas.
   Uma onda padrão sustentada aparece em quadrado separado, na mesma escala.
-  A prévia abre automaticamente após a análise. Menos de 10 s não gera laudo;
+  A prévia de impressão abre ao clicar em **Imprimir**. Menos de 10 s não gera laudo;
   sem qualidade suficiente, há somente traçado. Geometria incompatível com as
   margens ou amplitude bloqueia a saída, sem compressão. A gravação completa
   continua disponível na tela e no arquivo bruto.
@@ -42,10 +47,10 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
   disponível. [Método, filtros e proveniência](docs/research-profile.md).
 - Os dois canais M2 são interpretados como I e II conforme a pesquisa de protocolo
   citada abaixo; III, aVR, aVL e aVF são derivados por identidades elétricas.
-- A disponibilidade usa uma interpretação experimental dos dois bits inferiores
-  de cada palavra M2: `00` disponível; demais códigos indisponíveis. Dois arquivos
-  locais rotulados confirmaram canal 2 com `01` no modo D1 e `00` no modo 6L,
-  em todas as amostras aceitas. Isso não constitui documentação oficial do protocolo.
+- O seletor define quais canais podem alimentar as derivações. Dentro desse
+  limite, dois bits de cada palavra M2 sinalizam disponibilidade: `00` passa
+  na verificação experimental, e os demais códigos bloqueiam o canal. O código
+  `00` pode aparecer no segundo canal com dois eletrodos.
   Perda de contato bloqueia imediatamente as derivações dependentes; a recuperação
   exige 500 ms de confirmação, além da verificação de qualidade. D1 permanece
   disponível quando apenas o segundo canal está ausente. A transição física de
@@ -81,7 +86,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.16.0 exploratória)
+## Análise automática local (0.17.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -132,6 +137,7 @@ Para frequência e regularidade, o gráfico de RR mostra a gravação inteira; c
 em um RR localiza o trecho de 10 segundos no traçado contínuo.
 [Método e apresentação das evidências na versão 0.15.0](docs/evidence-0150.md).
 [Revisão dos limites de P e do ritmo na versão 0.16.0](docs/rhythm-0160.md).
+[Seleção de derivações e avaliação do ritmo na versão 0.17.0](docs/leads-and-rhythm-0170.md).
 [Critérios exploratórios e descrições da versão 0.14.0](docs/exploratory-rules-0140.md).
 
 O botão **Análise neural…** abre a avaliação exploratória e inicia, em sequência,

@@ -142,7 +142,7 @@ def guard_rules(recording, measurement, rows):
             row['limitations'].extend(dict.fromkeys(reasons))
             if reasons:row['technical_status']='advisory'
             detected=[(i,v[row['id']]) for i,v in enumerate(variants) if v[row['id']]['status']=='detected']
-            if row['status']!='detected' and detected:
+            if row['status']!='detected' and detected and not (row['id']=='pr_short' and row.get('possible_context')):
                 names=[quality.get('subsets',[])[i]['name'] if i<len(quality.get('subsets',[])) else f'subconjunto {i+1}' for i,_ in detected]
                 row['possible']=dict(source='subset_medians',subsets=names,
                     leads=sorted(set().union(*(set(v['leads']) for _,v in detected))),

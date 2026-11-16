@@ -39,7 +39,7 @@ def trace_window(r,offset=0.,duration=None):
     begin,end=recording_scope(r);start=begin+offset;stop=min(end,start+(duration if duration is not None else end-start))
     if stop-start<10-1e-6:raise ValueError('São necessários pelo menos 10 s de gravação para gerar um laudo.')
     times=r.times[:r.n];a=int(np.searchsorted(times,start-1e-7));b=int(np.searchsorted(times,start+10-1e-7))
-    mode='six' if a<b and (r.lead_modes[a:b]==6).all() else 'di'
+    mode='six' if a<b and (r.effective_modes(a,b)==6).all() else 'di'
     return dict(first_sample=a,last_sample_exclusive=b,offset_seconds=float(offset),duration_seconds=10.,
         layout=mode,analysis_eligible=False,reason='Sem janela comum de qualidade suficiente; somente traçado.')
 
@@ -50,7 +50,8 @@ def select_window(r,cancelled=lambda:False,emit=lambda text:None,offset=0.,durat
     fallback=trace_window(r,offset,duration);begin,end=recording_scope(r);t=r.times[:r.n]
     start=begin+offset;stop=min(end,start+(duration if duration is not None else end-start))
     first=int(np.searchsorted(t,start-1e-7));last=int(np.searchsorted(t,stop-1e-7))
-    two=bool((r.lead_modes[first:last]==6).any());leads=['I','II'] if two else ['I'];count=len(leads)
+    modes=r.effective_modes()
+    two=bool((modes[first:last]==6).any());leads=['I','II'] if two else ['I'];count=len(leads)
     if last-first<3000:return fallback,None,[]
     starts=sorted(set(range(first,last-3000+1,300))|{last-3000})
     candidates=[];best=None;best_rank=None;entries_best=None
@@ -58,7 +59,7 @@ def select_window(r,cancelled=lambda:False,emit=lambda text:None,offset=0.,durat
         if cancelled():raise Cancelled()
         if number%20==0:emit('Selecionando janela comum de 10 s')
         b=a+3000;raw=r.raw[a:b,:count].astype(float)
-        if not r.quality[a:b].all() or not np.all(r.lead_modes[a:b]>=(6 if two else 1)) or np.any((r.raw[a:b,:count]&3)!=0):continue
+        if not r.quality[a:b].all() or not np.all(modes[a:b]>=(6 if two else 1)) or np.any((r.raw[a:b,:count]&3)!=0):continue
         if not np.allclose(np.diff(t[a:b]),1/300,atol=1e-6,rtol=0) or not joint_quality(raw):continue
         # Select a continuous display/model window, without delineating any
         # individual wave or letting derived low-amplitude leads veto medians.

@@ -7,8 +7,11 @@ import numpy as np
 from .median_landmarks import mad
 from .orientation import normal_signs
 from .morphology_rules import describe_wave
+from .signal import FS
 
-VERSION = 'limb-rules-6'
+VERSION = 'limb-rules-7'
+MIN_RHYTHM_COVERAGE = .90
+MAX_RHYTHM_GAP_SECONDS = 2.
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
 DESCRIPTIONS = ('p_biphasic', 't_biphasic', 't_notched')
 
@@ -28,6 +31,9 @@ def contiguous(leads):
 
 def rhythm_quality(recording, measurement):
     alignment = measurement.get('alignment', {})
+    coverage = alignment.get('rhythm', {}).get('coverage')
+    if coverage is not None:
+        return coverage['fraction'] >= MIN_RHYTHM_COVERAGE and coverage['longest_gap_seconds'] <= MAX_RHYTHM_GAP_SECONDS
     if alignment.get('unusable_segments'):
         return False
     if 'first_sample' not in measurement or 'last_sample_exclusive' not in measurement:
@@ -136,8 +142,15 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         ('qrs_wide','QRS alargado',qrs is not None and qrs >= 120,'QRS global ≥120 ms em adulto; sem identificação de ramo.'),
         ('p_wide','P alargada; possível atraso de condução atrial',pd is not None and pd >= 120,'P global ≥120 ms em adulto; sem diagnóstico de aumento atrial.')]:
         value = hr if key in ('brady','tachy') else pr if key.startswith('pr_') else qrs if key=='qrs_wide' else pd
-        add(key,label,bool(condition) if adult and value is not None else None,criteria,
+        quality = metrics.get('pr', {}).get('quality', {})
+        borderline = (key == 'pr_short' and adult and condition and 0 < 120-pr <= 1000/FS
+                      and quality.get('status') in ('review', 'unverified'))
+        add(key,'PR limítrofe' if borderline else label,bool(condition and not borderline) if adult and value is not None else None,criteria,
             adult_reason if not adult else 'Limites necessários indisponíveis.' if value is None else '')
+        if borderline:
+            duration = f'{pr:g}'.replace('.', ',')
+            warning = quality.get('reason') or 'Estabilidade do PR não confirmada.'
+            rows[-1]['possible_context'] = f'PR limítrofe de {duration} ms, a até uma amostra de 120 ms. {warning}'
     qt_limit = 450 if c['sex']=='male' else 460
     qt_reason = ''
     if not adult: qt_reason = adult_reason
@@ -152,7 +165,8 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
             rows[-1]['possible_context'] = 'Possível prolongamento, dependente do sexo de referência; não altera sozinho a conclusão principal.'
     valid = {l:f for l,f in data.items() if f['available']}
     six = all(l in valid for l in ('I','II','III','aVR','aVL','aVF'))
-    orientation_ok = normal_signs(recording, 'deeppsp_2l') is not None
+    only_di = set(data) == {'I'}
+    orientation_ok = normal_signs(recording, 'ecgfounder_1l' if only_di else 'deeppsp_2l') is not None
     for key, label, field, predicate, criterion, eligible, paired in [
         ('p_tall','P de amplitude elevada','p_mv',lambda v:v>.25,'P >0,25 mV em derivação inferior.',('II','III','aVF'),False),
         ('j_elevation','Elevação do ponto J em derivações contíguas','j_mv',lambda v:v>=.1,'J ≥0,10 mV em duas derivações contíguas de membros; não determina infarto.',('I','II','III','aVL','aVF'),True),
@@ -181,27 +195,41 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         if possible: rows[-1]['possible_morphology_leads'] = possible
     # Check conducted beats for the origin of the prevailing rhythm. Detected
     # premature complexes remain part of the sequence used for RR and rate.
-    needed = ('I', 'II', 'aVR')
+    needed = ('I',) if only_di else ('I', 'II', 'aVR')
+    sinus_label = 'Ritmo compatível com sinusal em DI' if only_di else 'Ritmo de base sinusal'
     association = rhythm.get('p_association')
     sinus_reasons=[]
     for lead in needed:
         if lead not in valid:sinus_reasons.append(lead+': P/base indisponível');continue
         f=valid[lead]
         if (f['p_mv']<=.02 if lead!='aVR' else f['p_mv']>=-.02):sinus_reasons.append(lead+': polaridade/amplitude de P fora do critério')
-        if association is None:
+        if association is None and not only_di:
             if f['p_consistency']<.9:sinus_reasons.append(f"{lead}: P consistente em {f['p_consistency']:.0%} dos batimentos (mínimo 90%)")
             if f['p_peak_dispersion_ms']>20:sinus_reasons.append(f"{lead}: dispersão de P {f['p_peak_dispersion_ms']:.1f} ms (limite 20 ms)")
-    if association is not None and not association['supported']:
-        sinus_reasons.append(f"Associação P–QRS em {association['matched']}/{association['evaluated']} batimentos predominantes ou variação de tempo acima do limite técnico")
+    if association is None and only_di:
+        sinus_reasons.append('Associação P–QRS em DI indisponível')
+    elif association is not None and not association['supported']:
+        if association['fraction'] < .9:
+            sinus_reasons.append(f"Associação P–QRS em {association['matched']}/{association['evaluated']} batimentos predominantes (mínimo de 90%)")
+        elif association['dispersion_ms'] is None or association['dispersion_ms'] > 20:
+            sinus_reasons.append('Dispersão da associação P–QRS acima do limite técnico de 20 ms')
+        else:
+            sinus_reasons.append('Associação P–QRS diverge entre trechos válidos')
     if pr is None:sinus_reasons.append('PR indisponível')
     if alignment.get('accepted_beats',0)<5:sinus_reasons.append('Menos de cinco batimentos aceitos')
     identified = {event['sample'] for event in events}
     unexplained = sum(item['sample'] not in identified for item in alignment.get('excluded', []))
     if unexplained:
         sinus_reasons.append(f'{unexplained} batimento(s) de morfologia distinta ainda sem caracterização')
-    if not rhythm_quality(recording, measurement):
+    usable_rhythm = rhythm_quality(recording, measurement)
+    if not usable_rhythm:
         sinus_reasons.append('Trechos sem qualidade/continuidade suficiente na janela analisada')
     sinus = not sinus_reasons if all(l in valid for l in needed) and pr is not None else None
+    sinus_limitations = [] if orientation_ok else ['Ritmo avaliado assumindo a polaridade exibida, sem referência validada.']
+    coverage = rhythm.get('coverage')
+    if coverage and coverage['longest_gap_seconds'] > 1/FS:
+        sinus_limitations.append(f"Ritmo avaliado nos trechos válidos: {coverage['seconds']:.1f} de {coverage['duration_seconds']:.1f} s. "
+                                 f"Maior perda de sinal ou de continuidade: {coverage['longest_gap_seconds']:.2f} s.")
     for row in rows:
         if c['age_years'] is None and row['id'] not in ('irregular','premature',*DESCRIPTIONS):
             row['limitations'].append('Idade não informada: comparação exploratória com limiares de adulto.')
@@ -214,12 +242,15 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         guard_rules(recording,measurement,rows)
     findings=[r for r in rows if r['status']=='detected' and r['presentation']=='finding']
     missing=[r for r in rows if r['required_for_normal'] and r['status']=='unavailable']
-    if not findings and sinus and regular:
+    if only_di and sinus and regular:
+        summary='Ritmo regular compatível com sinusal em DI'
+        status=('partial' if missing else 'findings') if findings else 'no_findings'
+    elif not findings and sinus and regular:
         summary='Sinusal, regular, normal nos critérios avaliados'
         status='no_findings'
     elif findings:
         if sinus and (events or regular is False):
-            parts = ['Ritmo de base sinusal']
+            parts = [sinus_label]
             if events:
                 parts.append(f'{len(events)} batimento prematuro' if len(events) == 1 else f'{len(events)} batimentos prematuros')
             if regular is False:
@@ -232,8 +263,8 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
     return dict(version=VERSION,status=status,summary=summary,context=c,rules=rows,features=data,
         morphology=[r for r in rows if r['presentation']=='description'],
         possibilities=[r for r in rows if r.get('possible') and r['presentation']=='finding'],
-        sinus_reasons=sinus_reasons,p_association=association,
-        sinus_limitations=[] if orientation_ok else ['Ritmo sinusal avaliado assumindo a polaridade exibida, sem referência validada.'],
+        sinus_reasons=sinus_reasons,p_association=association,sinus_label=sinus_label,
+        sinus_limitations=sinus_limitations,sinus_leads=list(needed),
         sinus_supported=sinus,regular=regular,rr_cv=cv,findings=findings,
         limitations=['Derivações de membros; sem precordiais.','Amplitudes estimadas pelo perfil ativo; hipóteses exploratórias.',
                      'Sem inferência de infarto, eletrólitos, aumento de câmaras ou bloqueio de ramo específico.'],

@@ -125,7 +125,8 @@ def analysis_key(recording,technical_mode=False, *, offset=0.,duration=None):
     import hashlib
     from .global_median import VERSION
     metadata=dict(meta=recording.meta,profile=profile_info(recording),scope=scope(recording,offset,duration),
-                  mode=technical_mode,catalog=catalog(),version=f'{__version__}-{VERSION}')
+                  mode=technical_mode,catalog=catalog(),version=f'{__version__}-{VERSION}',
+                  review_as_di=recording.review_as_di)
     digest=hashlib.sha256(json.dumps(metadata,sort_keys=True).encode())
     for values in (recording.raw,recording.times,recording.quality,recording.lead_modes):
         digest.update(values[:recording.n].tobytes())

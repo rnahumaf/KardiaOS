@@ -37,15 +37,17 @@ def waveform_values(recording,first,last,raw=False,mask_contact=True,display_con
     r=recording;factor,signs=scale_and_signs(r)
     source=r.raw if raw else review_counts(r,display_config) if completed(r) else r.filtered
     native=source[first:last].astype(float)*np.asarray(signs)
-    result=six_leads(native)*factor
-    modes=r.lead_modes[first:last]
+    modes=r.effective_modes(first,last)
     available=channel_available(r.raw[first:last])
     # A trace-only fallback may show the observed I samples with invalid contact,
     # but never invents a second lead or derived channels from unavailable data.
+    result=np.full((len(native),6),np.nan)
     if mask_contact:
         one=(modes>0)&available[:,0]&r.quality[first:last]
-        result[~one,0]=np.nan
+        result[one,0]=native[one,0]*factor
+    else:
+        result[:,0]=native[:,0]*factor
     six=(modes==6)&available.all(axis=1)
     if mask_contact:six &= r.quality[first:last]
-    result[~six,1:]=np.nan
+    if np.any(six):result[six,1:]=six_leads(native[six])[:,1:]*factor
     return result

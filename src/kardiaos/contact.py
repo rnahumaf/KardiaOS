@@ -2,7 +2,9 @@
 
 In the supplied 1L capture, channel 2 had low bits 01 in every accepted sample;
 both channels had 00 in the 6L capture. Other nonzero codes are treated as
-unavailable, not guessed. This is not an official AliveCor protocol contract.
+unavailable. A zero code does not establish the physical electrode count, so
+the chosen acquisition mode limits which channels can be used. This is not
+an official AliveCor protocol contract.
 """
 import numpy as np
 

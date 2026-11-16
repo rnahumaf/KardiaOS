@@ -255,8 +255,9 @@ class AutomaticAnalysisDialog(QDialog):
                 (self.possibilities_label,'Possibilidades entre subconjuntos · somente nos detalhes',possibilities),
                 (self.limitations_label,'Limitações das comparações exploratórias',limitations)]:
             widget.setText(title+'\n'+'\n'.join('• '+v for v in items) if items else '');widget.setVisible(bool(items))
+        sinus_label = classification.get('sinus_label', 'Ritmo de base sinusal')
         if classification.get('sinus_supported'):
-            self.add_row('detected', ['Ritmo de base sinusal', 'Polaridade de P e associação P–QRS nos batimentos predominantes.'], 'sinus')
+            self.add_row('detected', [sinus_label, 'Polaridade de P e associação P–QRS nos batimentos predominantes.'], 'sinus')
         elif classification.get('sinus_supported') is not None:
             self.add_row('review', ['Origem do ritmo de base', '. '.join(classification.get('sinus_reasons', []))], 'sinus')
         quality = result.get('measurements', {}).get('technical_quality', {})
@@ -277,12 +278,18 @@ class AutomaticAnalysisDialog(QDialog):
             if item.get('possible_morphology_leads'):detail+=' Componentes discretos em '+', '.join(item['possible_morphology_leads'])+'.'
             if item['status'] == 'detected' and item.get('limitations'):
                 detail+=' '+' '.join(item['limitations'])
-            if item.get('possible_context'):prefix='Possível: ';detail+=' '+item['possible_context']
+            if item.get('possible_context'):
+                if item['id'] == 'pr_short':
+                    prefix = ''
+                    detail = item['possible_context']
+                else:
+                    prefix = 'Possível: '
+                    detail += ' ' + item['possible_context']
             self.add_row(criterion_group(item),[prefix+item['label'],detail],item['id'])
         self.update_rule_groups()
         def link(key,value):return '<a style="color:#176b55" href="'+escape(key,quote=True)+'">'+escape(value)+'</a>'
         links=[link(v['id'],v['label'] + (' · '+v['interpretation'] if v.get('interpretation') else '')) for v in findings]
-        if classification.get('sinus_supported') is not None:links.append(link('sinus',('Ritmo de base sinusal' if classification['sinus_supported'] else 'Verificar origem do ritmo')+' · ver evidências'))
+        if classification.get('sinus_supported') is not None:links.append(link('sinus',(sinus_label if classification['sinus_supported'] else 'Verificar origem do ritmo')+' · ver evidências'))
         if classification.get('regular'):links.append(link('irregular','Ritmo regular · ver evidências'))
         if links:self.findings_label.setText('<br>'.join(links))
         descriptions=[];possible_links=[]

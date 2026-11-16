@@ -75,7 +75,7 @@ def stable_segment(recording, seconds=30, offset=0., duration=None, lead="I"):
     end = int(np.searchsorted(t, begin+request['duration_seconds']-1e-7, side='right'))
     channel = 0 if lead == 'I' else 1
     mode = 1 if lead == 'I' else 6
-    good = r.quality[:r.n] & (r.lead_modes[:r.n] >= mode) & ((r.raw[:r.n, channel] & 3) == 0)
+    good = r.quality[:r.n] & (r.effective_modes() >= mode) & ((r.raw[:r.n, channel] & 3) == 0)
     good[:start] = False; good[end:] = False
     breaks = np.flatnonzero(~np.isclose(np.diff(t), 1 / FS, rtol=0, atol=1e-6)) + 1
     cuts = sorted(set([0, r.n, *breaks.tolist(), *(np.flatnonzero(np.diff(good.astype(int)))+1).tolist()]))
@@ -137,6 +137,6 @@ def measure_recording(recording,offset=0.,duration=None,*,lead='I',include_other
     """Independent I/II results. Additional leads are never merged into a global QT/QRS."""
     result=_measure_lead(recording,offset,duration,lead)
     result['additional_leads']=[]
-    if include_other and lead=='I' and recording is not None and recording.n and np.any(recording.lead_modes[:recording.n]==6):
+    if include_other and lead=='I' and recording is not None and recording.n and np.any(recording.effective_modes()==6):
         result['additional_leads'].append(_measure_lead(recording,offset,duration,'II'))
     return result

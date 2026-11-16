@@ -120,6 +120,13 @@ def check_automatic():
         if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='estimated'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
     di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
+    record.review_as_di = True
+    reviewed = automatic_analysis(record)
+    assert list(reviewed['representative']) == ['I'] and reviewed['source_key'] != result['source_key']
+    assert page_plan(record, analysis=reviewed)['layout'] == 'di'
+    assert np.isnan(record.lead_values()[:, 1:]).all()
+    record.review_as_di = False
+    assert record.mode_at() == 6
     preview=OfflinePreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()
     assert not render_page(pdf_bytes(record,layout='di',analysis=result)).isNull();dialog.close()
     # The optional referenced profile still requires channel-specific evidence.
