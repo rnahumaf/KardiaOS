@@ -3,11 +3,19 @@ import tempfile,time
 from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QSettings
-from PySide6.QtPrintSupport import QPrinter
+from PySide6.QtPrintSupport import QPrinter,QPrinterInfo
 from bleak.backends.winrt.client import BleakClientWinRT
 from .app import Window,synthetic_pairs
 from .recording import Recording,save_recording,load_recording
 from .preview import PrintPreview,render_page,configure_printer,print_page
+from .report import DEFAULT_IMAGEABLE
+
+
+class OfflinePreview(PrintPreview):
+    """Use PDF margins so a synthetic check never probes a physical queue."""
+
+    def imageable(self):
+        return DEFAULT_IMAGEABLE
 
 
 def check():
@@ -23,13 +31,20 @@ def check():
         assert r.n==3600 and r.meta['synthetic']
         analysis=dict(status='completed',mode='normal',source_key=analysis_key(r),report_window=trace_window(r),reportable=True,trace_only=True,
             measurements=empty('Synthetic rendering check'),scenarios=[],hypotheses=[],representative={})
-        preview=PrintPreview(r,analysis=analysis,autostart=False)
+        preview=OfflinePreview(r,analysis=analysis,autostart=False)
         assert preview.page_image is not None and not preview.page_image.isNull() and preview.ready()
         assert preview.page_image.pixelColor(0,0).lightness()>200
-        printer=QPrinter(QPrinter.PrinterMode.HighResolution);printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printed=Path(folder)/'printed.pdf';printer.setOutputFileName(str(printed));configure_printer(printer)
-        print_page(preview.data,printer,preview.plan['content_bounds']);assert not render_page(printed.read_bytes()).isNull()
+        pdf_device = QPrinterInfo.printerInfo('Microsoft Print to PDF')
+        if not pdf_device.isNull():
+            printer = QPrinter(pdf_device, QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printed = Path(folder)/'printed.pdf'
+            printer.setOutputFileName(str(printed))
+            configure_printer(printer)
+            print_page(preview.data, printer, preview.plan['content_bounds'])
+            assert not render_page(printed.read_bytes()).isNull()
         preview.close();assert not render_page(w.report()).isNull();w.dirty=False;w.close()
+        return dict(pdf_printer_exercised=not pdf_device.isNull())
 
 
 def check_research():
@@ -105,7 +120,7 @@ def check_automatic():
         if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='estimated'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
     di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
-    preview=PrintPreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()
+    preview=OfflinePreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()
     assert not render_page(pdf_bytes(record,layout='di',analysis=result)).isNull();dialog.close()
     # The optional referenced profile still requires channel-specific evidence.
     set_profile(record,REFERENCED);record.meta['synthetic']=False
