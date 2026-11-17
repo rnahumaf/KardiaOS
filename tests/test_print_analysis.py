@@ -9,21 +9,30 @@ from test_measurements import signal_record
 from test_automatic_analysis import fake_infer
 from test_analysis_dialog import wait
 
-def test_one_sheet_has_same_window_top_three_without_scores_or_raw_qt():
-    r=signal_record();a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
+def test_one_sheet_has_patient_timestamp_and_metrics_without_scores_or_raw_qt():
+    r=signal_record()
+    r.meta.update(patient_name='Paciente Teste da Conceição', recorded_at='2025-03-04T14:27:01-03:00')
+    a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
     assert len(plan['rows'])==2 and plan['end']-plan['start']==10
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
-    for term in ['FC: 60 bpm','P:','QRS:','global; Fridericia','PR prolongado; possível atraso de condução AV']:assert term in text
-    assert 'QT:' not in text and '0.2500' not in text
+    assert 'Paciente: Paciente Teste da Conceição' in text
+    assert 'Gravado em 04/03/2025 14:27:01' in text
+    metrics = next(line for line in text.splitlines() if 'FC: 60 bpm' in line)
+    for term in ('P:', 'QRS:', 'QTcF:', 'Fridericia'):
+        assert term in metrics
+    assert 'PR prolongado; possível atraso de condução AV' in text
+    assert 'QTc:' not in text and 'QT:' not in text and '0.2500' not in text
     assert not a['scenarios']
     assert a['classification']['summary'] in text
 
 def test_short_blocked_and_poor_quality_trace_only():
     r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)
     with pytest.raises(ValueError,match='10 s'):pdf_bytes(r,analysis=a)
-    r=signal_record(noise=.7);a=automatic_analysis(r,infer=fake_infer);text=PdfReader(io.BytesIO(pdf_bytes(r,analysis=a,gain=5))).pages[0].extract_text()
+    r=signal_record(noise=.7);r.meta['created']='2025-03-04T14:27:01-03:00'
+    a=automatic_analysis(r,infer=fake_infer);text=PdfReader(io.BytesIO(pdf_bytes(r,analysis=a,gain=5))).pages[0].extract_text()
     assert 'Somente traçado' in text
-    for term in ['QTc:','FC:','Hipóteses','QRS:']:assert term not in text
+    assert 'Gravado em 04/03/2025 14:27:01' in text and 'Paciente:' not in text
+    for term in ['QTcF:','FC:','Hipóteses','QRS:']:assert term not in text
 
 def test_preview_automatically_runs_caches_and_cancels(monkeypatch):
     app=QApplication.instance();monkeypatch.setattr('kardiaos.analysis_dialog.automatic_analysis',lambda r,emit,cancel,**kw:automatic_analysis(r,emit,cancel,fake_infer,**kw))

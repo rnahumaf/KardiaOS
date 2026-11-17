@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 from pathlib import Path
 import queue
 import sys
@@ -7,7 +8,7 @@ import numpy as np
 from PySide6.QtCore import Qt, QTimer, QSettings
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QSlider,
+    QLabel, QLineEdit, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QSlider,
     QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QStyle, QScrollArea, QTableWidget, QHeaderView, QAbstractItemView)
 from .ble import Stream
 from .signal import FS, MV_PER_COUNT, FilterConfig, Processor, contact_ok, automatic_config
@@ -34,8 +35,9 @@ QPushButton:disabled { color: #a3b0aa; border-color: #e3e8e5; background: #f5f7f
 QPushButton#primary { background: #176b5d; color: white; border: 1px solid #176b5d; font-weight: 600; }
 QPushButton#primary:hover { background: #125749; }
 QPushButton#primary:disabled { background: #9bb9b0; border-color: #9bb9b0; }
-QComboBox, QSpinBox, QDoubleSpinBox { border: 1px solid #d6e0dc; border-radius: 5px; background: white; padding: 6px 8px; min-height: 20px; color: #29423e; }
-QComboBox:disabled { color: #87988f; background: #eff3f0; }
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit { border: 1px solid #d6e0dc; border-radius: 5px; background: white; padding: 6px 8px; min-height: 20px; color: #29423e; }
+QComboBox:disabled, QLineEdit:disabled { color: #87988f; background: #eff3f0; }
+QLineEdit:focus { border-color: #176b5d; }
 QCheckBox { spacing: 8px; color: #29483b; border: 1px solid transparent; border-radius: 4px; padding: 2px; }
 QCheckBox:focus { border-color: #176b5d; background: #e7f1eb; }
 QCheckBox:disabled { color: #78877f; }
@@ -141,6 +143,10 @@ class Window(QMainWindow):
         header.addWidget(label("KardiaOS", "brand"))
         header.addWidget(label("  /  Laboratório de ECG", "muted"))
         header.addStretch()
+        self.recorded_time = label('', 'muted')
+        self.recorded_time.hide()
+        header.addWidget(self.recorded_time)
+        header.addSpacing(14)
         header.addWidget(label("DADOS SINTÉTICOS" if demo else "PESQUISA  ·  PROCESSAMENTO LOCAL", "section"))
         outer.addLayout(header)
 
@@ -178,6 +184,7 @@ class Window(QMainWindow):
         self.open_button = QPushButton("Abrir captura")
         self.open_button.clicked.connect(self.open_recording)
         self.save_button = QPushButton("Salvar bruto")
+        self.save_button.setToolTip("Salva as amostras originais e os dados da captura, incluindo o nome preenchido.")
         self.save_button.clicked.connect(self.save)
         self.pdf_button = QPushButton("Exportar PDF")
         self.pdf_button.clicked.connect(self.export_pdf)
@@ -192,11 +199,21 @@ class Window(QMainWindow):
         self.analysis_findings=label('',wrap=True);self.analysis_findings.hide();panel.addWidget(self.analysis_findings)
         self.analysis_pending=label('', 'muted', True);self.analysis_pending.hide();panel.addWidget(self.analysis_pending)
         self.analysis_quality=label('', 'muted', True);self.analysis_quality.setStyleSheet('color:#855b11;');self.analysis_quality.hide();panel.addWidget(self.analysis_quality)
-        context_row=QHBoxLayout();context_row.addWidget(label('Idade','muted'))
+        context_row = QHBoxLayout()
+        patient_label = label('Paciente', 'muted')
+        self.patient_name = QLineEdit()
+        self.patient_name.setPlaceholderText('Nome opcional')
+        self.patient_name.setAccessibleName('Nome do paciente (opcional)')
+        self.patient_name.setMinimumWidth(150)
+        patient_label.setBuddy(self.patient_name)
+        self.patient_name.textEdited.connect(self.patient_name_changed)
+        context_row.addWidget(patient_label)
+        context_row.addWidget(self.patient_name, 1)
+        context_row.addWidget(label('Idade','muted'))
         self.age=QSpinBox();self.age.setRange(-1,120);self.age.setSpecialValueText('Não informada');self.age.setValue(-1);self.age.setSuffix(' anos');self.age.setKeyboardTracking(False);context_row.addWidget(self.age)
         context_row.addWidget(label('Sexo de referência','muted'));self.sex=QComboBox()
         for text,value in [('Não informado',None),('Masculino','male'),('Feminino','female')]:self.sex.addItem(text,value)
-        context_row.addWidget(self.sex);context_row.addStretch()
+        context_row.addWidget(self.sex)
         self.research_button=QPushButton('Detalhes da análise');self.research_button.clicked.connect(self.open_research);context_row.addWidget(self.research_button)
         panel.addLayout(context_row);outer.addWidget(self.measure_panel)
         self.age.valueChanged.connect(self.clinical_context_changed);self.sex.currentIndexChanged.connect(self.clinical_context_changed)
@@ -411,7 +428,7 @@ class Window(QMainWindow):
     def protect_recording(self):
         if not self.dirty or not self.recording or not self.recording.n:
             return True
-        choice = QMessageBox.question(self, "Preservar captura", "Salvar os dados brutos antes de continuar?",
+        choice = QMessageBox.question(self, "Preservar captura", "Salvar a captura antes de continuar?",
                                       QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
                                       QMessageBox.StandardButton.Save)
         if choice == QMessageBox.StandardButton.Cancel:
@@ -429,6 +446,8 @@ class Window(QMainWindow):
         self.refresh_measure_panel()
         mode = self.capture_mode.currentData()
         self.recording = Recording(self.demo, acquisition_mode=mode)
+        self.patient_name.clear()
+        self.recorded_time.hide()
         self.recording.meta['clinical_context']=self.clinical_context()
         self.paper.analysis=None
         set_profile(self.recording,self.profile_combo.currentData())
@@ -490,6 +509,8 @@ class Window(QMainWindow):
             self.set_state("Estabilizando o sinal", "Verificando contato e descartando o transiente inicial da exibição.")
             if ready:
                 r.meta["start"] = float(r.times[old_n])
+                r.meta['recorded_at'] = datetime.now().astimezone().isoformat(timespec='seconds')
+                self.show_recorded_time()
                 self.accepted_wall = time.monotonic()
                 self.paper.overlay = ""
                 self.set_state("Gravando", description)
@@ -623,6 +644,7 @@ class Window(QMainWindow):
         self.save_button.setEnabled(have and not self.live)
         self.research_button.setEnabled(stable and not self.live)
         self.age.setEnabled(not self.live);self.sex.setEnabled(not self.live)
+        self.patient_name.setEnabled(self.recording is not None)
         self.pdf_button.setEnabled(stable and not self.live)
         self.print_button.setEnabled(stable and not self.live)
         self.play_button.setEnabled(stable and not self.live)
@@ -698,6 +720,9 @@ class Window(QMainWindow):
             self.paper.cursor = recording.last_time
             self.paper.overlay = "" if recording.meta.get("start") is not None else "Captura sem trecho estabilizado"
             self.apply_filters(FilterConfig(self.base.currentData(),self.smooth.currentData(),self.notch.currentData()))
+            self.patient_name.setText(recording.patient_name)
+            self.patient_name.setCursorPosition(0)
+            self.show_recorded_time()
             self.sync_clinical_context();self.refresh_measure_panel()
             self.dirty = False
             self.replaying = False
@@ -708,6 +733,22 @@ class Window(QMainWindow):
             self.schedule_analysis()
         except Exception as exc:
             QMessageBox.warning(self, "Captura inválida", str(exc))
+
+    def show_recorded_time(self):
+        timestamp = self.recording.recorded_time_text
+        self.recorded_time.setText(f'Gravado em {timestamp}' if timestamp else '')
+        self.recorded_time.setVisible(bool(timestamp))
+
+    def patient_name_changed(self, text):
+        name = text.strip()
+        recording = self.recording
+        if recording is None or name == recording.patient_name:
+            return
+        if name:
+            recording.meta['patient_name'] = name
+        else:
+            recording.meta.pop('patient_name', None)
+        self.dirty = True
 
     def clinical_context(self):
         return dict(age_years=self.age.value() if self.age.value()>=0 else None,sex=self.sex.currentData())

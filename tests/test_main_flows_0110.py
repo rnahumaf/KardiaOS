@@ -2,9 +2,10 @@
 import time
 import numpy as np
 from PySide6.QtCore import QSettings,QTimer
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from kardiaos.app import Window,synthetic_pairs
-from kardiaos.recording import save_recording
+from kardiaos.recording import load_recording,save_recording
 from kardiaos.automatic_analysis import automatic_analysis,analysis_key,cached_analysis
 from kardiaos.analysis_dialog import AutomaticAnalysisDialog
 from kardiaos.signal import FilterConfig
@@ -59,16 +60,32 @@ def test_visual_changes_keep_measures_and_change_only_display(tmp_path,monkeypat
 
 def test_capture_completion_and_loading_stay_on_main_screen(tmp_path,monkeypatch):
     app=QApplication.instance();w=window(tmp_path);w.demo=True;no_preview(monkeypatch);w.start()
+    assert w.patient_name.isEnabled() and not w.patient_name.text()
+    QTest.keyClicks(w.patient_name, 'Paciente da captura')
     began=time.monotonic()-12
     for i in range(0,3600,9):w.accept_samples(began+i/300,synthetic_pairs(i,9))
     w.stop();wait(app,lambda:cached_analysis(w.recording) is not None and not w._analysis_thread.isRunning())
     assert w.isVisible() and w.measure_panel.isVisible()
+    assert w.recording.patient_name == 'Paciente da captura'
+    assert w.recording.meta['recorded_at'] and w.recording.recorded_time_text in w.recorded_time.text()
     r=signal_record();r.meta['clinical_context']=dict(age_years=55,sex='female');path=tmp_path/'synthetic.kardia';save_recording(path,r)
     w.dirty=False;monkeypatch.setattr('kardiaos.app.QFileDialog.getOpenFileName',lambda *a,**k:(str(path),''))
     w.open_button.click();wait(app,lambda:cached_analysis(w.recording) is not None and not w._analysis_thread.isRunning() and not w._analysis_timer.isActive())
     assert w.age.value()==55 and w.sex.currentData()=='female'
     assert w.measure_values['pr'].text()!='—' and w.isVisible()
-    w.dirty=False;w.close()
+    assert not w.patient_name.text()
+    analysis = cached_analysis(w.recording)
+    QTest.keyClicks(w.patient_name, 'Paciente Teste')
+    assert w.dirty and cached_analysis(w.recording) is analysis and not w._analysis_timer.isActive()
+    monkeypatch.setattr('kardiaos.app.QFileDialog.getSaveFileName',lambda *a,**k:(str(path),''))
+    assert w.save() and load_recording(path).patient_name == 'Paciente Teste'
+    w.autorun.setChecked(False)
+    w.open_button.click()
+    assert w.patient_name.text() == 'Paciente Teste'
+    w.start()
+    assert not w.patient_name.text() and not w.recorded_time.isVisible()
+    w.stop()
+    w.close()
 
 
 def test_pdf_export_is_direct_and_preview_is_print_only(tmp_path,monkeypatch):

@@ -1,4 +1,4 @@
-"""Versioned, lossless local recordings. No pickle, no identifiers, no cloud."""
+"""Versioned, lossless recordings stored locally without pickle."""
 from datetime import datetime
 import hashlib
 import io
@@ -74,6 +74,22 @@ class Recording:
     @property
     def last_time(self):
         return float(self.times[self.n - 1]) if self.n else 0.0
+
+    @property
+    def patient_name(self):
+        name = self.meta.get('patient_name')
+        return name.strip() if isinstance(name, str) else ''
+
+    @property
+    def recorded_time_text(self):
+        for key in ('recorded_at', 'created'):
+            timestamp = self.meta.get(key)
+            if isinstance(timestamp, str) and len(timestamp) > 10:
+                try:
+                    return datetime.fromisoformat(timestamp).strftime('%d/%m/%Y %H:%M:%S')
+                except ValueError:
+                    continue
+        return ''
 
     @property
     def di_only(self):

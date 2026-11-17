@@ -9,9 +9,10 @@ from .orientation import normal_signs
 from .morphology_rules import describe_wave
 from .signal import FS
 
-VERSION = 'limb-rules-7'
+VERSION = 'limb-rules-8'
 MIN_RHYTHM_COVERAGE = .90
 MAX_RHYTHM_GAP_SECONDS = 2.
+MIN_CONTINUOUS_RHYTHM_SECONDS = 10
 GROUPS = [('I', 'aVL'), ('II', 'III', 'aVF')]
 DESCRIPTIONS = ('p_biphasic', 't_biphasic', 't_notched')
 
@@ -222,11 +223,22 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
     if unexplained:
         sinus_reasons.append(f'{unexplained} batimento(s) de morfologia distinta ainda sem caracterização')
     usable_rhythm = rhythm_quality(recording, measurement)
-    if not usable_rhythm:
+    coverage = rhythm.get('coverage')
+    supported_starts = {group['first_sample'] for group in (association or {}).get('segments', [])
+                        if group['supported']}
+    # A limited conclusion still requires concordant P–QRS and RR evidence,
+    # including a continuous segment with enough individually matched beats.
+    limited_rhythm = (not usable_rhythm and not sinus_reasons and regular is True and not events
+                      and coverage is not None and any(
+                          first in supported_starts and last-first >= MIN_CONTINUOUS_RHYTHM_SECONDS*FS
+                          for first, last in coverage.get('segments', [])))
+    if limited_rhythm:
+        derivation = ' em DI' if only_di else ''
+        sinus_label = f'Ritmo regular compatível com sinusal{derivation} nos trechos válidos'
+    elif not usable_rhythm:
         sinus_reasons.append('Trechos sem qualidade/continuidade suficiente na janela analisada')
     sinus = not sinus_reasons if all(l in valid for l in needed) and pr is not None else None
     sinus_limitations = [] if orientation_ok else ['Ritmo avaliado assumindo a polaridade exibida, sem referência validada.']
-    coverage = rhythm.get('coverage')
     if coverage and coverage['longest_gap_seconds'] > 1/FS:
         sinus_limitations.append(f"Ritmo avaliado nos trechos válidos: {coverage['seconds']:.1f} de {coverage['duration_seconds']:.1f} s. "
                                  f"Maior perda de sinal ou de continuidade: {coverage['longest_gap_seconds']:.2f} s.")
@@ -242,7 +254,10 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         guard_rules(recording,measurement,rows)
     findings=[r for r in rows if r['status']=='detected' and r['presentation']=='finding']
     missing=[r for r in rows if r['required_for_normal'] and r['status']=='unavailable']
-    if only_di and sinus and regular:
+    if limited_rhythm:
+        summary=sinus_label
+        status='partial'
+    elif only_di and sinus and regular:
         summary='Ritmo regular compatível com sinusal em DI'
         status=('partial' if missing else 'findings') if findings else 'no_findings'
     elif not findings and sinus and regular:

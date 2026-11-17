@@ -108,9 +108,20 @@ def _grid(c,x,bottom,w,h):
             else:c.line(x*mm,(bottom+j)*mm,(x+w)*mm,(bottom+j)*mm)
 
 
-def _text(c,text,x,y,size=8,bold=False):
+def _text(c,text,x,y,size=8,bold=False,*,right=False,max_width=None):
     c.setFillColor(HexColor('#183e42'));c.setFont('Helvetica-Bold' if bold else 'Helvetica',size)
-    c.drawString(x*mm,y*mm,str(text).replace('≥','>='))
+    text = str(text).replace('≥','>=')
+    if max_width is not None and c.stringWidth(text) > max_width*mm:
+        available = max_width*mm - c.stringWidth('…')
+        length = 0
+        for character in text:
+            available -= c.stringWidth(character)
+            if available < 0:
+                break
+            length += 1
+        text = text[:length].rstrip() + '…'
+    draw = c.drawRightString if right else c.drawString
+    draw(x*mm,y*mm,text)
 
 
 def measurement_line(analysis):
@@ -118,12 +129,15 @@ def measurement_line(analysis):
     root=analysis.get('measurements',{});items=[root]+root.get('additional_leads',[])
     selected=analysis.get('selected_lead');item=next((v for v in items if v.get('lead')==selected),root)
     parts=[]
-    for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS')]:
+    for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS'),('qtc_f','QTcF')]:
         metric=item.get('metrics',{}).get(key,{})
         value=metric.get('value');text=f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'
         if metric.get('quality',{}).get('reason'):text+=' *'
         if key!='heart_rate':
-            text+=' (global)' if item.get('global_intervals') else (f' (D{item["lead"]})' if item.get('lead') else '')
+            scope = 'global' if item.get('global_intervals') else f'D{item["lead"]}' if item.get('lead') else ''
+            if scope:
+                suffix = ', Fridericia' if key == 'qtc_f' else ''
+                text += f' ({scope}{suffix})'
         parts.append(name+': '+text)
     return ' | '.join(parts)
 
@@ -136,15 +150,19 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
     c.setFillColor(HexColor('#fffcf1'));c.rect(0,0,width,height,fill=1,stroke=0)
     _text(c,'KardiaOS',x0,top-5,14,True)
     if recording.meta.get('synthetic'):_text(c,'DADOS SINTÉTICOS',x0+35,top-5,8,True)
-    _text(c,f'{speed:g} mm/s | {gain:g} mm/mV estimados | 300 Hz nominais',right-95,top-5,8)
-    if plan['inferred']:
-        _text(c,analysis.get('qtc_label','QTc: erro na estimativa'),x0,top-11,10,True)
-        _text(c,measurement_line(analysis),right-115,top-11,8)
-    else:_text(c,'Somente traçado',x0,top-11,10,True)
+    _text(c,f'{speed:g} mm/s | {gain:g} mm/mV estimados | 300 Hz nominais',right,top-5,right=True)
     cfg=recording.config
     filters='Bruto' if raw else f'Fase zero | {cfg.baseline:g}–{cfg.lowpass:g} Hz | rede {cfg.notch or "desligada"}'
-    _text(c,f'Janela automática {plan["start"]-plan["begin"]:.3f}–{plan["end"]-plan["begin"]:.3f} s | gravação {plan["recording_end"]-plan["begin"]:.3f} s',x0,top-17,8)
-    _text(c,filters,right-95,top-17,8)
+    _text(c,filters,right,top-11,right=True)
+    if recording.patient_name:
+        name = ' '.join(recording.patient_name.split())
+        name_width = w - c.stringWidth(filters, 'Helvetica', 8)/mm - 5
+        _text(c,f'Paciente: {name}',x0,top-11,10,True,max_width=name_width)
+    timestamp = recording.recorded_time_text
+    _text(c,f'Gravado em {timestamp}' if timestamp else 'Data e hora da gravação indisponíveis',x0,top-17)
+    metrics = measurement_line(analysis) if plan['inferred'] else 'Somente traçado'
+    _text(c,metrics,right,top-17,right=True)
+    _text(c,f'Janela automática {plan["start"]-plan["begin"]:.3f}–{plan["end"]-plan["begin"]:.3f} s | gravação {plan["recording_end"]-plan["begin"]:.3f} s',x0,top-21)
     times=recording.times[:recording.n];gaps=np.r_[False,~np.isclose(np.diff(times),1/300,atol=1e-6,rtol=0)]
     for row in plan['rows']:
         left=row['data_x'];bottom=row['top']-row['h'];baseline=row['baseline']

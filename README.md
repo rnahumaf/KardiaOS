@@ -86,7 +86,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.17.0 exploratória)
+## Análise automática local (0.17.1 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -112,6 +112,11 @@ Os detalhes da análise seguem o mesmo padrão visual: abas com seleção explí
 ações compactas, critérios expansíveis com estado destacado e tabelas com linhas
 alternadas. Os seletores ficam desabilitados enquanto não há dados disponíveis.
 Idade e sexo opcionais ficam no painel e atualizam a análise automaticamente.
+O nome do paciente é opcional e pode ser editado durante a captura ou após
+**Abrir captura**. **Salvar bruto** grava o nome no arquivo local. O PDF e a
+impressão mostram o nome preenchido e a data e hora de início da gravação. Para
+capturas antigas, o aplicativo usa a data e a hora registradas no início da
+sessão de captura. FC, duração de P, QRS e QTcF aparecem juntos no cabeçalho.
 A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.
 
@@ -123,6 +128,10 @@ com aviso explícito, também nos critérios de frequência e intervalos. Sem se
 QTcF é comparado com ambos os limiares; discordâncias aparecem como possíveis
 somente nos detalhes. O ritmo sinusal pode assumir a polaridade exibida, mantendo
 as verificações de P, associação P–QRS e qualidade, com motivos específicos.
+Quando as lacunas impedem a conclusão sobre a gravação inteira, o aplicativo
+pode indicar ritmo regular compatível com sinusal nos trechos válidos. A
+conclusão exige concordância entre os trechos avaliados e pelo menos 10 s
+contínuos com associação P–QRS sustentada. [Referência sobre tiras contínuas de 10 s para análise de ritmo](https://www.ahajournals.org/doi/pdf/10.1161/circulationaha.106.180200).
 Achados da mediana completa alimentam a conclusão. Alterações presentes apenas
 em subconjuntos e descrições de P/T bifásicas ou T com entalhe ficam nos detalhes.
 A instabilidade dos intervalos também preserva o resultado da mediana completa

@@ -87,8 +87,8 @@ def test_review_as_di_is_session_only_including_analysis_pdf_and_models(tmp_path
     assert not window.review_di_button.isChecked() and window.recording.mode_at() == 6
 
 
-@pytest.mark.parametrize('loss, eligible', [(153, True), (660, False)])
-def test_rhythm_uses_concordant_segments_without_rr_crossing_the_gap(loss, eligible):
+@pytest.mark.parametrize('loss, full_coverage', [(153, True), (660, False)])
+def test_rhythm_uses_concordant_segments_without_rr_crossing_the_gap(loss, full_coverage):
     record = signal_record()
     gap = 5000
     record.times[gap:record.n] += .11
@@ -100,8 +100,23 @@ def test_rhythm_uses_concordant_segments_without_rr_crossing_the_gap(loss, eligi
     assert len(rhythm['p_association']['segments']) == 2
     assert all(not a < gap <= b for a, b in rhythm['rr_pairs'])
     classification = result['classification']
-    assert classification['sinus_supported'] is eligible
+    assert classification['sinus_supported']
+    assert ('nos trechos válidos' not in classification['summary']) == full_coverage
+    if not full_coverage:
+        assert classification['status'] == 'partial'
     assert any('trechos válidos' in text for text in classification['sinus_limitations'])
+
+
+def test_disrupted_di_requires_a_continuous_segment_for_limited_sinus_result():
+    record = signal_record()
+    record.meta['acquisition_mode'] = 'di'
+    for second in (7, 14, 21, 28):
+        record.quality[second*FS:(second+1)*FS] = False
+    result = automatic_analysis(record)
+    rhythm = result['measurements']['alignment']['rhythm']
+    assert rhythm['p_association']['supported']
+    assert result['classification']['regular']
+    assert not result['classification']['sinus_supported']
 
 
 def test_tachycardia_in_di_is_separate_from_rhythm():
