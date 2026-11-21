@@ -13,10 +13,13 @@ def test_one_sheet_has_patient_timestamp_and_metrics_without_scores_or_raw_qt():
     r=signal_record()
     r.meta.update(patient_name='Paciente Teste da Conceição', recorded_at='2025-03-04T14:27:01-03:00')
     a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
-    assert len(plan['rows'])==2 and plan['end']-plan['start']==10
+    assert len(plan['rows'])==6 and plan['end']-plan['start']==pytest.approx(30)
     text=PdfReader(io.BytesIO(pdf_bytes(r,layout='di',analysis=a))).pages[0].extract_text()
     assert 'Paciente: Paciente Teste da Conceição' in text
     assert 'Gravado em 04/03/2025 14:27:01' in text
+    assert 'DI 0.000–30.000 s' in text
+    offset = a['report_window']['offset_seconds']
+    assert f'Janela automática {offset:.3f}–{offset+10:.3f} s' in text
     metrics = next(line for line in text.splitlines() if 'FC: 60 bpm' in line)
     for term in ('P:', 'QRS:', 'QTcF:', 'Fridericia'):
         assert term in metrics
@@ -24,6 +27,24 @@ def test_one_sheet_has_patient_timestamp_and_metrics_without_scores_or_raw_qt():
     assert 'QTc:' not in text and 'QT:' not in text and '0.2500' not in text
     assert not a['scenarios']
     assert a['classification']['summary'] in text
+
+
+def test_long_di_keeps_late_automatic_window_and_median_on_the_page():
+    r = signal_record(seconds=81)
+    r.review_as_di = True
+    a = automatic_analysis(r, infer=fake_infer, offset=70, duration=10)
+    plan = page_plan(r, speed=50, analysis=a)
+    assert plan['layout'] == 'di' and len(plan['rows']) == 6
+    assert plan['first'] < a['report_window']['first_sample']
+    assert plan['last'] == a['report_window']['last_sample_exclusive'] == r.n
+    assert plan['end']-plan['start'] > 30 and plan['remaining_seconds'] > 0
+    last = plan['rows'][-1]
+    assert last['template'] == a['representative']['I'] and last['template_side'] >= 48
+    assert last['template_x'] + last['template_side'] <= plan['content_bounds'][2]
+    for row in plan['rows'][:-1]:
+        assert not row['template']
+        if row['top'] - row['h'] < last['template_bottom'] + last['template_side']:
+            assert row['data_x'] + row['duration']*50 < last['template_x']
 
 def test_short_blocked_and_poor_quality_trace_only():
     r=signal_record(seconds=4);a=automatic_analysis(r,infer=fake_infer)

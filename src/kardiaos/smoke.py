@@ -119,11 +119,14 @@ def check_automatic():
         assert measured['global_fiducials']==result['measurements']['global_fiducials']
         if measured['metrics']['qtc_f']['value'] is not None:assert measured['metrics']['qtc_f']['status']=='estimated'
     plan=page_plan(record,analysis=result);assert len(plan['rows'])==6 and plan['end']-plan['start']==10
-    di=page_plan(record,layout='di',analysis=result);assert len(di['rows'])==2 and all(not v['template'] for v in di['rows'][:-1])
     record.review_as_di = True
     reviewed = automatic_analysis(record)
     assert list(reviewed['representative']) == ['I'] and reviewed['source_key'] != result['source_key']
-    assert page_plan(record, analysis=reviewed)['layout'] == 'di'
+    di = page_plan(record, analysis=reviewed)
+    assert di['layout'] == 'di' and len(di['rows']) == 6
+    assert np.allclose([row['duration'] for row in di['rows']], 5.)
+    assert all(not row['template'] for row in di['rows'][:-1]) and di['rows'][-1]['template']
+    assert not render_page(pdf_bytes(record, analysis=reviewed)).isNull()
     assert np.isnan(record.lead_values()[:, 1:]).all()
     record.review_as_di = False
     assert record.mode_at() == 6

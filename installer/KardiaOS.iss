@@ -1,4 +1,4 @@
-#define AppVersion "0.17.1"
+#define AppVersion "0.17.2"
 [Setup]
 AppId={{D7C2A4A3-6346-4B50-9F47-B87283E88A12}
 AppName=KardiaOS

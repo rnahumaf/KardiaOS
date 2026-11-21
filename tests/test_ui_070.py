@@ -42,7 +42,7 @@ def test_print_scope_and_qt_gate_separate_leads():
         text=reader.pages[0].extract_text()
         assert 'QT:' not in text and 'QTcF:' in text and 'global, Fridericia' in text
         assert 'Fase zero' in text and 'PR prolongado; possível atraso de condução AV' in text
-        assert len(plan['rows'])==(2 if layout=='di' else 6)
+        assert len(plan['rows'])==6
 
 def test_method_policy_and_version_invalidate_old_cache():
     r=signal_record();a=automatic_analysis(r,infer=fake_infer)

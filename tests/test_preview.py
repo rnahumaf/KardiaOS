@@ -1,5 +1,6 @@
 import io
 import numpy as np
+import pytest
 from pypdf import PdfReader
 from PySide6.QtWidgets import QApplication
 from PySide6.QtPrintSupport import QPrinter
@@ -8,9 +9,13 @@ from kardiaos.automatic_analysis import automatic_analysis,cache_analysis
 from test_report import fixture
 from test_automatic_analysis import fake_infer
 
-def test_preview_is_opaque_light_and_prints_one_landscape_page(tmp_path):
-    app=QApplication.instance();r=fixture();a=automatic_analysis(r,infer=fake_infer);cache_analysis(r,a)
+@pytest.mark.parametrize('single', [False, True])
+def test_preview_is_opaque_light_and_prints_one_landscape_page(tmp_path, single):
+    app=QApplication.instance();r=fixture(single=single);a=automatic_analysis(r,infer=fake_infer);cache_analysis(r,a)
     preview=PrintPreview(r,autostart=False);preview.show();app.processEvents();image=preview.page_image
+    if single:
+        assert '6 faixas de DI' in preview.span_note.text()
+        assert preview.plan['last'] == r.n and preview.plan['end'] - preview.plan['start'] == pytest.approx(30 + 1/300)
     pixels=np.frombuffer(image.bits(),dtype=np.uint8).reshape(image.height(),image.width(),4)
     assert np.all(pixels[:,:,3]==255) and np.mean(pixels[:,:,:3]>180)>.9
     assert not preview.page.pixmap().isNull() and not hasattr(preview,'offset')

@@ -58,7 +58,7 @@ def test_strict_page_and_square_dimensions_and_no_empty_box():
             v=np.asarray(row['template']['values_mv']);ys=row['template_baseline']+10*v
             assert np.ptp(ys)==pytest.approx(10*np.ptp(v))
     di=page_plan(r,layout='di',analysis=a)
-    assert all(not row['template'] for row in di['rows'][:-1]) and di['rows'][-1]['end']-di['start']==10
+    assert all(not row['template'] for row in di['rows'][:-1]) and di['rows'][-1]['end']-di['start']==pytest.approx(30)
     with pytest.raises(ValueError,match='margens|altura'):page_plan(r,analysis=a,imageable=(15,15,267,180))
     with pytest.raises(ValueError,match='escala'):page_plan(r,analysis=a,speed=50)
 

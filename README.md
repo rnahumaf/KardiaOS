@@ -34,8 +34,11 @@ O modo de demonstração é explicitamente sintético. Nunca se mistura a uma se
   conferir e corrigir separadamente os eixos com régua.
 - O PDF usa dimensões físicas A4 (297 × 210 mm), grade de 1/5 mm, velocidade
   de 25 ou 50 mm/s e ganho de 5, 10 ou 20 mm/mV. Imprima a 100%, sem ajustar à página.
-  **Imprimir** e **Exportar PDF** mostram uma janela automática comum de 10 s.
-  Seis derivações usam seis linhas sincronizadas; DI isolada usa linhas sucessivas.
+  Em **Imprimir** e **Exportar PDF**, DI ocupa as linhas do A4 com trechos
+  consecutivos. Na escala padrão, uma captura de 30 s ocupa seis linhas de 5 s.
+  Se a gravação exceder a capacidade da folha, o intervalo impresso inclui a
+  janela automática de 10 s. O cabeçalho identifica os intervalos e a duração
+  da gravação. Em seis derivações, as seis linhas mostram os mesmos 10 s.
   Uma onda padrão sustentada aparece em quadrado separado, na mesma escala.
   A prévia de impressão abre ao clicar em **Imprimir**. Menos de 10 s não gera laudo;
   sem qualidade suficiente, há somente traçado. Geometria incompatível com as
@@ -86,7 +89,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.17.1 exploratória)
+## Análise automática local (0.17.2 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia

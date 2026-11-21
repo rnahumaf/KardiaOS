@@ -1,4 +1,4 @@
-"""Automatic-window, opaque one-page preview. No time or scale fitting."""
+"""Opaque preview and printing of the same exact-scale A4 page."""
 from pathlib import Path
 from PySide6.QtCore import Qt,QByteArray,QBuffer,QIODevice,QSize,QRectF
 from PySide6.QtGui import QImage,QPainter,QPixmap,QPageLayout,QPageSize
@@ -58,7 +58,7 @@ class PrintPreview(QDialog):
         self.thread=None;self.closing=False;self.autostart=autostart;self._desired_key=analysis_key(recording)
         self.data=b'';self.page_image=None;self.plan=None
         box=QVBoxLayout(self);box.setContentsMargins(20,16,20,16)
-        box.addWidget(QLabel(f'Janela automática de 10 s · 1 folha · A4 paisagem · {speed:g} mm/s · {gain:g} mm/mV'))
+        box.addWidget(QLabel(f'1 folha A4 paisagem · {speed:g} mm/s · {gain:g} mm/mV'))
         self.span_note=QLabel('A gravação completa permanece disponível na tela.');self.span_note.setWordWrap(True);box.addWidget(self.span_note)
         row=QHBoxLayout();row.addWidget(QLabel('Impressora'));self.printers=QComboBox();self.printers.addItems(QPrinterInfo.availablePrinterNames())
         default=QPrinterInfo.defaultPrinterName()
@@ -116,7 +116,10 @@ class PrintPreview(QDialog):
         try:
             region=self.imageable();self.plan=page_plan(self.recording,self.speed,self.gain,self.raw,analysis=self.analysis,imageable=region)
             self.data=pdf_bytes(self.recording,self.speed,self.gain,self.raw,analysis=self.analysis,imageable=region);self.page_image=render_page(self.data)
-            p=self.plan;self.span_note.setText(f'{len(p["rows"])} faixas · {p["start"]-p["begin"]:.3f}–{p["end"]-p["begin"]:.3f} s · sem compressão de tempo ou amplitude.')
+            p = self.plan
+            layout = f'{len(p["rows"])} faixas de DI' if p['layout'] == 'di' else '6 derivações sincronizadas'
+            self.span_note.setText(f'{layout} · trecho impresso {p["start"]-p["begin"]:.3f}–{p["end"]-p["begin"]:.3f} s'
+                                   f' · gravação de {p["recording_end"]-p["begin"]:.3f} s')
             self.save_button.setEnabled(True);self.print_button.setEnabled(self.printers.count()>0)
             self.status.setText('Somente traçado: a janela não sustentou análise.' if not p['inferred'] else '');self.fit_page()
         except (ValueError,RuntimeError) as exc:self.status.setText(str(exc));self.data=b''
