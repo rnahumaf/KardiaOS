@@ -99,4 +99,7 @@ class TimingPlot(QWidget):
             for index in indices:p.drawLine(QPointF(px(index),area.top()),QPointF(px(index),area.bottom()))
             if indices:p.drawText(QRectF(px(np.mean(indices))-30,area.top()-20,60,20),Qt.AlignmentFlag.AlignCenter,name)
         p.setPen(QColor('#526a6e'))
-        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),'Faixas âmbar: variação dos marcos a revisar entre subconjuntos.' if flagged else 'Marcos calculados nas medianas suavizadas exibidas. Estimativa exploratória.')
+        caption = 'Faixas âmbar: variação dos marcos a revisar entre subconjuntos.' if flagged else 'Marcos calculados nas medianas suavizadas exibidas. Estimativa exploratória.'
+        if m.get('landmark_review', {}).get('origin') == 'manual':
+            caption = 'Marcos revisados manualmente. A referência R e a sequência RR continuam automáticas.'
+        p.drawText(QRectF(48,self.height()-27,self.width()-60,22),caption)

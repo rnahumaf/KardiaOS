@@ -1,7 +1,7 @@
 """Known synthetic timing and distortion budgets; never patient fixtures."""
 import numpy as np
 import pytest
-from kardiaos.median_landmarks import smooth_median, qrs_candidate, combine_candidates
+from kardiaos.median_landmarks import smooth_median, qrs_candidate, combine_candidates, delineate_medians, wave_candidate
 from kardiaos.global_median import analyze
 from qt_synthetics import pulse
 from test_measurements import signal_record
@@ -60,9 +60,9 @@ def test_detector_receives_exact_displayed_smoothed_medians(monkeypatch):
     from kardiaos import global_median
     original = global_median.delineate_medians
     captured = {}
-    def inspect(medians, anchor, rr):
+    def inspect(medians, anchor, rr, stacks=None):
         captured.update({lead: {k: v.copy() for k, v in values.items()} for lead, values in medians.items()})
-        return original(medians, anchor, rr)
+        return original(medians, anchor, rr, stacks)
     monkeypatch.setattr(global_median, 'delineate_medians', inspect)
     r = signal_record()
     _, representatives, _, _ = analyze(r)
@@ -84,3 +84,47 @@ def test_wide_qrs_retains_width_and_does_not_receive_routine_qtc():
     m, _, _, _ = analyze(signal_record(qrs_width=.16))
     assert m['metrics']['qrs_duration']['value'] == pytest.approx(160, abs=10)
     assert m['metrics']['qtc_f']['value'] is None
+
+
+@pytest.mark.parametrize('frequency', [52, 60])
+def test_repeated_qrs_recovers_known_flanks_with_line_noise(frequency):
+    t = (np.arange(286)-105)/300
+    p = pulse(t, -.155, .10, .12)
+    clean = pulse(t, 0, .08, 1.) + p
+    phases = np.random.default_rng(71).uniform(-2.2, 2.2, 20)
+    noisy = np.stack([clean+.06*np.sin(2*np.pi*frequency*t+phase) for phase in phases])
+    median = smooth_median(np.median(noisy, axis=0))[0]
+    assert not qrs_candidate(median, 105)[0]
+    stacks = {'qrs': noisy[:, :, None], 'pt': np.tile(clean, (20, 1))[:, :, None]}
+    points, _, candidates = delineate_medians({'I': {'qrs': median, 'pt': clean}}, 105, 1., stacks)
+    assert candidates['I']['qrs']['method'] == 'repeated_flanks'
+    assert (points['qon'], points['qoff']) == pytest.approx((93, 117), abs=2)
+
+
+@pytest.mark.parametrize('sign', [-1, 1])
+def test_short_ripple_in_p_flank_requires_repeated_shape(sign):
+    samples = np.arange(286)
+    t = (samples-105)/300
+    p = pulse(t, -.155, .10, .12) - .023*np.exp(-.5*((samples-54)/.7)**2)
+    pt = sign*(p+pulse(t, 0, .08, 1.))
+    first, reason = wave_candidate(pt, 1, 87, 'p', 1e-5, 1.)
+    assert not first and reason == 'Tangentes P instáveis.'
+    confirmed, _ = wave_candidate(pt, 1, 87, 'p', 1e-5, 1., retry_tangents=True)
+    assert confirmed['offset_supported']
+    assert (confirmed['on'], confirmed['off']) == pytest.approx((43.5, 73.5), abs=3)
+
+
+@pytest.mark.parametrize('sign', [-1, 1])
+def test_p_can_be_measured_independently_of_qrs_and_pr(sign):
+    t = (np.arange(286)-105)/300
+    pt = pulse(t, 0, .08, 1.) + sign*pulse(t, -.155, .10, .12)
+    medians = {'I': {'qrs': np.zeros_like(t), 'pt': pt}}
+    stacks = {'qrs': np.zeros((16, len(t), 1)), 'pt': np.tile(pt, (16, 1))[:, :, None]}
+    points, _, candidates = delineate_medians(medians, 105, 1., stacks)
+    assert set(points) == {'pon', 'poff'}
+    assert (points['pon'], points['poff']) == pytest.approx((43.5, 73.5), abs=3)
+    assert candidates['I']['p']['search_bound_source'] == 'pt_band_search_only'
+    assert candidates['I']['p']['matched'] == 16
+    # A proposed P on the median cannot stand in for missing or inconsistent activity.
+    stacks['pt'][8:, :, 0] = pulse(t, 0, .08, 1.)
+    assert not delineate_medians(medians, 105, 1., stacks)[0]

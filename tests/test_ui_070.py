@@ -40,7 +40,8 @@ def test_print_scope_and_qt_gate_separate_leads():
         reader=PdfReader(io.BytesIO(pdf_bytes(r,layout=layout,analysis=a)))
         assert len(reader.pages)==1
         text=reader.pages[0].extract_text()
-        assert 'QT:' not in text and 'QTcF:' in text and 'global, Fridericia' in text
+        assert f"QT: {m['metrics']['qt']['value']:g} ms" in text
+        assert 'QTcF:' in text and 'Fridericia' in text and 'intervalos globais' in text
         assert 'Fase zero' in text and 'PR prolongado; possível atraso de condução AV' in text
         assert len(plan['rows'])==6
 

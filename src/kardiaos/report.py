@@ -10,6 +10,7 @@ from .review_window import trace_window,recording_scope
 from .review_signal import waveform_values
 from .automatic_analysis import analysis_key,cached_analysis
 from .measurement_quality import alerts
+from .landmark_review import origin_label
 from .processing import profile_label,empirical
 
 DEFAULT_IMAGEABLE=(3.,3.,291.,204.)
@@ -189,16 +190,18 @@ def measurement_line(analysis):
     root=analysis.get('measurements',{});items=[root]+root.get('additional_leads',[])
     selected=analysis.get('selected_lead');item=next((v for v in items if v.get('lead')==selected),root)
     parts=[]
-    for key,name in [('heart_rate','FC'),('p_duration','P'),('qrs_duration','QRS'),('qtc_f','QTcF')]:
+    for key,name in [('heart_rate','FC'),('p_duration','P'),('pr','PR'),('qrs_duration','QRS'),('qt','QT'),('qtc_f','QTcF')]:
         metric=item.get('metrics',{}).get(key,{})
         value=metric.get('value');text=f'{value:g} {metric["unit"]}' if value is not None else 'indisponível'
         if metric.get('quality',{}).get('reason'):text+=' *'
         if key!='heart_rate':
-            scope = 'global' if item.get('global_intervals') else f'D{item["lead"]}' if item.get('lead') else ''
-            if scope:
-                suffix = ', Fridericia' if key == 'qtc_f' else ''
-                text += f' ({scope}{suffix})'
+            qualifiers = []
+            if not item.get('global_intervals') and item.get('lead'):
+                qualifiers.append(f'D{item["lead"]}')
+            if key == 'qtc_f': qualifiers.append('Fridericia')
+            if qualifiers: text += ' ('+', '.join(qualifiers)+')'
         parts.append(name+': '+text)
+    if item.get('global_intervals'): parts.append('intervalos globais')
     return ' | '.join(parts)
 
 
@@ -289,4 +292,6 @@ def pdf_bytes(recording,speed=25.,gain=10.,raw=False,offset=0.,layout='auto',ana
     if analysis and alerts(analysis.get('measurements',{})):
         _text(c,'* Estabilidade técnica limitada em algumas medidas; motivos e faixas nos detalhes da análise.',x0,y0+21,6.5)
     _text(c,'Pesquisa exploratória | '+profile+' | A4 a 100% | medianas: QRS 0,5–80 Hz; P/T 0,5–30 Hz | gravação completa preservada',x0,y0+1,6.5)
+    if plan['inferred']:
+        _text(c,origin_label(analysis['measurements'])+' | FC, RR e classificação automáticos',right,y0+5,7,True,right=True)
     c.showPage();c.save();return stream.getvalue()

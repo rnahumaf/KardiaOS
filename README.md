@@ -89,7 +89,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise automática local (0.17.2 exploratória)
+## Análise local e revisão dos marcos (0.18.0 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -102,6 +102,22 @@ quando outra derivação sustenta o limite. A aba Curvas e marcos mostra as medi
 batimentos alinhados. Uma medida indisponível não esconde a curva. Não há retorno
 à delineação de batimentos isolados nem participação do CompactSegmenter082 nas
 medidas operacionais. QTc usa Fridericia, com condições explícitas de aplicação.
+
+O detector procura as rampas iniciais e finais do QRS que se repetem nos
+batimentos alinhados. Quando a tangente de P é instável, o motor verifica a
+deflexão em diferentes escalas e nos batimentos individuais. Cada intervalo usa
+seus próprios limites. Uma P com início e fim sustentados pode ter duração
+publicada mesmo quando o QRS não permite medir o PR.
+
+Em **Detalhes da análise**, abra **Revisar marcos…** para conferir o início e
+o fim de P, QRS e T na mediana. Selecione um marco e a derivação, clique ou
+arraste na curva e use as setas para ajustar uma amostra por vez (3,33 ms).
+**Dispersão dos batimentos** mostra a faixa entre os percentis 25 e 75 dos
+batimentos alinhados. Use **Sem marca** quando o limite continuar duvidoso.
+**Confirmar marcos e aplicar** recalcula os intervalos e os critérios
+determinísticos a partir dos pontos exibidos. FC e RR vêm da sequência
+original. **Salvar captura…** grava a revisão no arquivo `.kardia` e permite
+retomá-la ao reabrir a mesma mediana.
 
 O painel inicial mostra classificação e uma tabela lateral compacta com FC, PR,
 QRS, QT/QTc e duração de P, acima dos controles de aquisição. Quando o QTcF
@@ -119,8 +135,11 @@ O nome do paciente é opcional e pode ser editado durante a captura ou após
 **Abrir captura**. **Salvar bruto** grava o nome no arquivo local. O PDF e a
 impressão mostram o nome preenchido e a data e hora de início da gravação. Para
 capturas antigas, o aplicativo usa a data e a hora registradas no início da
-sessão de captura. FC, duração de P, QRS e QTcF aparecem juntos no cabeçalho.
-A impressão abre somente por **Imprimir**; **Exportar PDF** salva diretamente.
+sessão de captura. O cabeçalho reúne FC, duração de P, PR, QRS, QT e QTcF.
+**Imprimir** abre a prévia. O usuário pode imprimir diretamente com marcos
+automáticos ou, se houver revisão, escolher qual das duas análises usar nessa
+impressão. **Exportar PDF** salva a análise ativa. O laudo informa a origem
+dos marcos.
 A suavização visual padrão é intensa (25 Hz), independente das medidas.
 
 A classificação padrão usa regras locais de ritmo, intervalos e morfologia,
@@ -192,6 +211,18 @@ As versões utilizadas ficam em `requirements-lock.txt`. Execute:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\scripts\build.ps1
+```
+
+Para comparar os limites automáticos com as anotações manuais da LUDB 1.0.1,
+instale `wfdb` no ambiente de validação e execute o comando abaixo com a pasta
+da base. A comparação usa DI e as seis derivações de membros. A divisão fixa
+reserva 40 registros para desenvolvimento e 160 para avaliação. O resultado
+informa cobertura, erro de início e fim, quantos pares ficaram a até 20 ms da
+referência em ambos os limites e quantos apareceram em registros sem anotação
+da onda. [Base LUDB no PhysioNet](https://physionet.org/content/ludb/1.0.1/).
+
+```powershell
+.\.venv\Scripts\python.exe scripts/validate_median_ludb.py --data C:/dados/ludb/1.0.1 --baseline fa08afdb70 --split held_out
 ```
 
 O build usa Inno Setup 6 e produz um instalador por usuário, sem exigir Python na

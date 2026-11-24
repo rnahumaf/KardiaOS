@@ -54,8 +54,10 @@ class PrintPreview(QDialog):
     def __init__(self,recording,speed=25,gain=10,raw=False,parent=None,autostart=True,analysis=None):
         super().__init__(parent);self.setWindowTitle('KardiaOS — Prévia de impressão');self.resize(1120,850);self.setMinimumSize(800,600)
         self.recording,self.speed,self.gain,self.raw=recording,speed,gain,raw
+        self.capture = recording
         self.analysis=analysis or cached_analysis(recording) or dict(status='running')
         self.thread=None;self.closing=False;self.autostart=autostart;self._desired_key=analysis_key(recording)
+        self.capture_key = self._desired_key
         self.data=b'';self.page_image=None;self.plan=None
         box=QVBoxLayout(self);box.setContentsMargins(20,16,20,16)
         box.addWidget(QLabel(f'1 folha A4 paisagem · {speed:g} mm/s · {gain:g} mm/mV'))
@@ -63,7 +65,13 @@ class PrintPreview(QDialog):
         row=QHBoxLayout();row.addWidget(QLabel('Impressora'));self.printers=QComboBox();self.printers.addItems(QPrinterInfo.availablePrinterNames())
         default=QPrinterInfo.defaultPrinterName()
         if self.printers.findText(default)>=0:self.printers.setCurrentText(default)
-        row.addWidget(self.printers,1);row.addWidget(QLabel('1 página · 1 cópia'));box.addLayout(row)
+        row.addWidget(self.printers,1)
+        self.point_origin = QComboBox()
+        self.point_origin.setAccessibleName('Origem dos marcos do laudo')
+        self.point_origin.addItem('Marcos revisados', 'manual')
+        self.point_origin.addItem('Marcos automáticos', 'automatic')
+        self.point_origin.hide()
+        row.addWidget(self.point_origin);row.addWidget(QLabel('1 página · 1 cópia'));box.addLayout(row)
         self.page=QLabel();self.page.setMinimumSize(400,280);self.page.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored)
         self.page.setAlignment(Qt.AlignmentFlag.AlignCenter);self.page.setStyleSheet('background:#dce3df;border:1px solid #c7d3cc;');box.addWidget(self.page,1)
         bottom=QHBoxLayout();bottom.addWidget(QLabel('Tamanho real (100%), sem ajustar à página.'));bottom.addStretch()
@@ -72,7 +80,27 @@ class PrintPreview(QDialog):
         close=QPushButton('Fechar');close.clicked.connect(self.reject)
         for button in (self.save_button,self.print_button,close):bottom.addWidget(button)
         box.addLayout(bottom);self.status=QLabel();self.status.setWordWrap(True);box.addWidget(self.status)
-        self.printers.currentIndexChanged.connect(self.refresh);self.request_analysis()
+        self.printers.currentIndexChanged.connect(self.refresh)
+        self.point_origin.activated.connect(self.choose_origin)
+        self.request_analysis()
+
+    def choose_origin(self, index):
+        from .automatic_analysis import automatic_analysis
+        from .landmark_review import set_review_active
+        from .processing import snapshot
+        state = self.analysis.get('measurements', {}).get('landmark_review', {})
+        desired = self.point_origin.itemData(index)
+        if desired == state.get('origin') or not state.get('saved'): return
+        if self.capture_key != analysis_key(self.capture):
+            self.analysis = dict(status='unavailable', reason='A captura mudou. Reabra a prévia.')
+            self.refresh()
+            return
+        # The choice applies only to this print job; the capture keeps its saved review.
+        self.recording = snapshot(self.capture)
+        set_review_active(self.recording, state, desired == 'manual')
+        self._desired_key = analysis_key(self.recording)
+        self.analysis = automatic_analysis(self.recording)
+        self.refresh()
 
     def request_analysis(self,*_):
         if self.closing:return
@@ -110,6 +138,9 @@ class PrintPreview(QDialog):
     def refresh(self,*_):
         self.data=b'';self.page_image=None;self.plan=None;self.page.clear();self.save_button.setEnabled(False);self.print_button.setEnabled(False)
         state=self.analysis.get('status')
+        review = self.analysis.get('measurements', {}).get('landmark_review', {})
+        self.point_origin.setVisible(bool(review.get('saved')))
+        self.point_origin.setCurrentIndex(self.point_origin.findData(review.get('origin', 'automatic')))
         if state!='completed':
             self.status.setText(self.analysis.get('reason') or ('Calculando análise local; fechar interrompe o processo.' if state=='running' else 'Análise interrompida.'))
             return
@@ -130,7 +161,10 @@ class PrintPreview(QDialog):
 
     def resizeEvent(self,event):super().resizeEvent(event);self.fit_page()
 
-    def ready(self):return bool(self.data and self.analysis.get('status')=='completed' and self._desired_key==analysis_key(self.recording))
+    def ready(self):
+        return bool(self.data and self.analysis.get('status')=='completed'
+                    and self.capture_key == analysis_key(self.capture)
+                    and self._desired_key == analysis_key(self.recording))
 
     def save_pdf(self):
         if not self.ready():return

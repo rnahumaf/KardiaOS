@@ -17,19 +17,27 @@ def similarity(a, b):
 
 def p_association(stack, medians, points, segment_starts):
     """Compare P shape and timing on the shared QRS clock, without new fiducials."""
-    if 'I' not in medians or len(stack) < 5 or not all(k in points for k in ('pon', 'poff', 'qon')):
+    leads = [lead for lead in ('I', 'II') if lead in medians]
+    if 'I' not in medians:
+        return None
+    waves = np.column_stack([medians[lead]['pt'] for lead in leads])
+    result = aligned_p_support(stack[:, :, :len(leads)], waves, points, segment_starts)
+    return dict(result, leads=leads) if result is not None else None
+
+
+def aligned_p_support(stack, waves, points, segment_starts):
+    """Verify a proposed median P against the same projection of the original beats."""
+    if len(stack) < 5 or not all(k in points for k in ('pon', 'poff', 'qon')):
         return None
     left = max(0, points['pon']-3)
     right = min(points['poff']+4, points['qon']-3)
     if right-left < 12:
         return None
-    leads = ['I', 'II'] if 'II' in medians else ['I']
-    waves = np.column_stack([medians[lead]['pt'] for lead in leads])
     template = detrend(savgol_filter(waves, 13, 3, axis=0)[left:right], axis=0)
     norm = np.linalg.norm(template)
     if norm <= 1e-12:
         return None
-    filtered = savgol_filter(stack[:, :, :len(leads)], 13, 3, axis=1)
+    filtered = savgol_filter(stack, 13, 3, axis=1)
     shifts = np.arange(max(-9, -left), min(9, points['qon']-3-right)+1)
     scores = []
     for shift in shifts:
@@ -56,7 +64,7 @@ def p_association(stack, medians, points, segment_starts):
         eligible = segment_starts == boundary
         if eligible.sum() >= 5:
             groups.append(dict(summarize(eligible), first_sample=int(boundary)))
-    return dict(result, leads=leads, segments=groups,
+    return dict(result, segments=groups,
                 supported=result['supported'] and all(v['supported'] for v in groups))
 
 
@@ -82,15 +90,14 @@ def _vector(curves):
 
 
 def premature_qrs_extent(median, beats, anchor):
-    """Delineate the QRS median, requiring reproducible weak flanks.
-
-    Each slope estimate comes from the median of the aligned group. Individual
-    slopes only verify whether the excursion reappears in its contributing beats.
-    """
     if len(beats) < 2 or median.shape[1] < 2:
         return dict(reason='A largura requer pelo menos dois complexos semelhantes com duas derivações simultâneas.')
-    central, repeated = _vector(median), _vector(beats)
-    limits = []
+    return corroborated_qrs_extent(_vector(median), _vector(beats), anchor, fractions=(.09, .105))
+
+
+def corroborated_qrs_extent(central, repeated, anchor, *, fractions):
+    """Measure median flanks that recur in aligned beats, at three derivative scales."""
+    limits, contrasts = [], []
     for width in (7, 9, 11):
         slope = np.gradient(savgol_filter(central, width, 3, axis=0), axis=0)
         repeated_slopes = np.gradient(savgol_filter(repeated, width, 3, axis=1), axis=1)
@@ -100,10 +107,12 @@ def premature_qrs_extent(median, beats, anchor):
         envelope = uniform_filter1d(np.minimum(magnitude, np.sqrt(magnitude*corroborated)), 5)
         quiet = envelope[anchor-43:anchor-25]
         floor = float(np.median(quiet)) + 3*mad(quiet)
+        background = magnitude[anchor-43:anchor-25]
+        noise = max(float(np.median(background)), mad(background))
         peak = anchor-18 + int(np.argmax(envelope[anchor-18:anchor+19]))
         if envelope[peak] <= max(5*floor, 1e-12):
             continue
-        for fraction in (.09, .105):
+        for fraction in fractions:
             active = envelope > max(floor, fraction*envelope[peak])
             left = right = peak
             while left > anchor-40 and np.any(active[left-5:left]):
@@ -112,13 +121,14 @@ def premature_qrs_extent(median, beats, anchor):
                 right += 1
             if anchor-40 < left < anchor < right < anchor+40:
                 limits.append((left, right))
+                contrasts.append(envelope[peak] / max(floor, noise, magnitude[peak]*.001, 1e-12))
     if len(limits) < 4 or np.max(np.ptp(limits, axis=0)) > 6:
-        return dict(reason='Início ou fim do QRS prematuro instável na mediana do grupo.')
+        return dict(reason='Início ou fim do QRS instável na mediana do grupo.')
     on, off = (int(v) for v in np.rint(np.median(limits, axis=0)))
     duration = (off-on)*1000/FS
     if not 40 <= duration <= 250:
-        return dict(reason='Duração do QRS prematuro fora da faixa técnica.')
-    return dict(on=on-anchor, off=off-anchor, qrs_ms=round(duration, 1),
+        return dict(reason='Duração do QRS fora da faixa técnica.')
+    return dict(on=on-anchor, off=off-anchor, qrs_ms=round(duration, 1), quality=float(np.median(contrasts)),
                 ranges_samples=[[int(v-anchor) for v in bounds]
                                 for bounds in zip(np.min(limits, axis=0), np.max(limits, axis=0))])
 

@@ -132,7 +132,24 @@ def p_onset_supported(x, onset, peak, sign, noise):
     return bool(abs(departures[0]-departures[1]) <= 3 and abs(np.mean(departures)-onset) <= 6)
 
 
-def wave_candidate(x, lo, hi, kind, noise, qamp):
+def multiscale_p_tangents(local, peak, sign, noise, lo):
+    """Intersect each fitted flank with its baseline at three regression widths."""
+    fits = []
+    for half in (2, 3, 4):
+        offsets = np.arange(-half, half+1)
+        slopes = np.correlate(local, offsets / np.sum(offsets**2), mode='same')
+        left, right = max(half, peak-24), min(len(local)-half, peak+24)
+        if peak-left < 3 or right-peak < 3:
+            return []
+        rise = left + int(np.argmax(sign*slopes[left:peak]))
+        fall = peak + int(np.argmax(-sign*slopes[peak:right]))
+        if min(sign*slopes[rise], -sign*slopes[fall]) <= max(noise/3, 1e-12):
+            return []
+        fits.append([lo+i-np.mean(local[i-half:i+half+1])/slopes[i] for i in (rise, fall)])
+    return fits
+
+
+def wave_candidate(x, lo, hi, kind, noise, qamp, *, retry_tangents=False):
     """Wave feet on the visible curve; no Gaussian widening of the waveform."""
     if hi-lo < 15:
         return {}, 'Janela de onda insuficiente.'
@@ -170,8 +187,11 @@ def wave_candidate(x, lo, hi, kind, noise, qamp):
                     return {}, 'Flanco P insuficiente para delimitação.'
                 bounds.append(lo+edge-intercept/slope)
             fits.append(bounds)
-        if np.max(abs(np.asarray(fits[0])-fits[1])) > 3:
-            return {}, 'Tangentes P instáveis.'
+        spread = np.max(np.ptp(fits, axis=0))
+        if spread > 3:
+            fits = multiscale_p_tangents(local, peak, sign, noise, lo) if retry_tangents else []
+            if not fits or (spread := np.max(np.ptp(fits, axis=0))) > 3:
+                return {}, 'Tangentes P instáveis.'
         on, off = np.rint(np.mean(fits, axis=0)).astype(int)
         if not lo < on < lo+peak < off < hi or not .04 <= (off-on)/FS <= .20:
             return {}, 'Tangentes P fora da onda ou da faixa técnica.'
@@ -180,7 +200,7 @@ def wave_candidate(x, lo, hi, kind, noise, qamp):
                     onset_supported=p_onset_supported(x, on, lo+peak, sign, noise),
                     offset_supported=refined is not None, offset_reason=why, offset_evidence=evidence,
                     quality=prominence/max(noise, 1e-10),
-                    sensitivity_samples=int(np.ceil(np.max(abs(np.asarray(fits[0])-fits[1]))))), ''
+                    sensitivity_samples=int(np.ceil(spread))), ''
     first, last = min(v[0] for v in lobes), max(v[0] for v in lobes)
     limits = []
     for fraction in (.04, .08):
@@ -285,38 +305,110 @@ def t_onset(x, lo, peak, noise):
     return int(np.rint(np.mean(estimates))), ''
 
 
-def delineate_medians(medians, anchor, rr):
+def corroborate_qrs(medians, stacks, anchor, candidates):
+    """Follow weaker initial and terminal slopes only when they recur across beats."""
+    from .rhythm_analysis import corroborated_qrs_extent
+    if stacks is None or len(stacks['qrs']) < 5:
+        return
+    for ch, (lead, data) in enumerate(medians.items()):
+        q = corroborated_qrs_extent(data['qrs'][:, None], stacks['qrs'][:, :, ch:ch+1], anchor,
+                                    fractions=(.04, .06))
+        if 'on' not in q or q['quality'] < 8:
+            continue
+        on, off = anchor+q['on'], anchor+q['off']
+        c = candidates[lead]
+        primary = c['qrs']
+        # Keep the original pair when both estimates agree within two samples.
+        # Switching between these concordant estimates can flip a borderline label.
+        if primary and max(abs(on-primary['qon']), abs(off-primary['qoff'])) <= 2:
+            primary['corroborated_indices'] = [on, off]
+            continue
+        c['qrs'] = dict(qon=on, qoff=off, quality=q['quality'], method='repeated_flanks',
+                        ranges_relative_to_r=q['ranges_samples'], initial_reason=c['reasons']['qrs'])
+        c['reasons']['qrs'] = ''
+
+
+def local_p(p):
+    return dict(pon=p['on'], poff=p['off'], quality=p['quality'],
+                onset_supported=p['onset_supported'], offset_supported=p['offset_supported'],
+                offset_reason=p['offset_reason'], offset_evidence=p['offset_evidence'],
+                sensitivity_samples=p['sensitivity_samples'])
+
+
+def recover_p(medians, stacks, anchor, rr, qon, candidates):
+    """Recover only a complete median P with independent beat-to-beat support."""
+    from .rhythm_analysis import aligned_p_support
+    if stacks is None or len(stacks['pt']) < 5:
+        return
+    n = len(stacks['pt'])
+    halves = np.arange(n) >= n//2
+    lo = max(1, anchor-105, anchor-int(.45*rr*FS))
+    for ch, (lead, data) in enumerate(medians.items()):
+        pt = data['pt']
+        guard = qon
+        if guard is None:
+            # The P/T-band QRS limits the search only. It cannot supply PR, QRS or QT.
+            guard = qrs_candidate(pt, anchor)[0].get('qon')
+        if guard is None:
+            continue
+        amp = float(np.ptp(data['qrs'][anchor-45:anchor+46]))
+        p, why = wave_candidate(pt, lo, guard-6, 'p', quiet_noise(pt, anchor), amp,
+                                retry_tangents=True)
+        c = candidates[lead]
+        if not p or not p['offset_supported']:
+            c['reasons']['p'] = why or p['offset_reason']
+            continue
+        points = dict(pon=p['on'], poff=p['off'], qon=guard)
+        support = aligned_p_support(stacks['pt'][:, :, ch:ch+1], pt[:, None], points, halves)
+        if not support or not support['supported']:
+            c['reasons']['p'] = 'Deflexão pré-QRS sem repetição suficiente nos batimentos alinhados.'
+            continue
+        c['p'] = dict(local_p(p), method='repeated_pre_qrs_wave', matched=support['matched'],
+                      evaluated=support['evaluated'], dispersion_ms=support['dispersion_ms'],
+                      search_bound_source='qrs' if qon is not None else 'pt_band_search_only')
+        c['reasons']['p'] = ''
+
+
+def delineate_medians(medians, anchor, rr, stacks=None):
     candidates = {}
     for lead, data in medians.items():
         qrs, why = qrs_candidate(data['qrs'], anchor)
         candidates[lead] = dict(qrs=qrs, reasons={'qrs': why})
+    primary, _ = combine_candidates(candidates, 'qrs', 'qon', 'qoff')
+    corroborate_qrs(medians, stacks, anchor, candidates)
     points, sources = combine_candidates(candidates, 'qrs', 'qon', 'qoff')
-    if not points: return {}, {}, candidates
-    for lead, data in medians.items():
+    for lead, data in (medians.items() if points else ()):
         x = data['pt']; c = candidates[lead]
         noise = quiet_noise(x, anchor)
         amp = float(np.ptp(data['qrs'][anchor-45:anchor+46]))
-        lo = max(1, anchor-105, anchor-int(.45*rr*FS))
-        p, why = wave_candidate(x, lo, points['qon']-6, 'p', noise, amp)
-        c['reasons']['p'] = why
-        if p:
-            c['p'] = dict(pon=p['on'], poff=p['off'], quality=p['quality'],
-                          onset_supported=p['onset_supported'],
-                          offset_supported=p['offset_supported'], offset_reason=p['offset_reason'],
-                          offset_evidence=p['offset_evidence'])
+        if primary:
+            lo = max(1, anchor-105, anchor-int(.45*rr*FS))
+            # Preserve the baseline used for an established P when the refined
+            # QRS still leaves a separate PR segment.
+            p, why = wave_candidate(x, lo, primary['qon']-6, 'p', noise, amp)
+            if p and p['off'] >= points['qon']-6:
+                p, why = wave_candidate(x, lo, points['qon']-6, 'p', noise, amp)
+            c['reasons']['p'] = why
+            if p:
+                c['p'] = local_p(p)
         hi = min(len(x)-4, anchor+180, anchor+int(rr*FS)-36)
-        t, why = wave_candidate(x, points['qoff']+9, hi, 't', noise, amp)
+        # A refinement of a QRS flank need not select a different T/U lobe.
+        search_qoff = primary.get('qoff', points['qoff'])
+        t, why = wave_candidate(x, search_qoff+9, hi, 't', noise, amp)
         c['reasons']['t'] = why
         if t:
-            lo = points['qoff']+6
+            lo = search_qoff+6
             base = np.median(x[lo:lo+6])
             peak = lo+int(np.argmax(abs(x[lo:t['off']]-base)))
             onset, why = t_onset(x, lo, peak, noise)
-            if onset is not None and onset < t['off']:
+            if onset is not None and points['qoff']+5 < onset < t['off']:
                 c['t'] = dict(ton=onset, toff=t['off'], quality=t['quality'])
-            else: c['reasons']['t'] = why
+            else: c['reasons']['t'] = why or 'Início de T sem separação do QRS refinado.'
     for wave, on, off in [('p', 'pon', 'poff'), ('t', 'ton', 'toff')]:
         values, provenance = combine_candidates(candidates, wave, on, off)
+        if wave == 'p' and not {on, off}.issubset(values):
+            recover_p(medians, stacks, anchor, rr, points.get('qon'), candidates)
+            values, provenance = combine_candidates(candidates, wave, on, off)
         points.update(values); sources.update(provenance)
     for on, off, low, high in [('pon','poff',.04,.20), ('qon','qoff',.04,.25), ('ton','toff',.07,.40)]:
         if on in points and off in points and not low <= (points[off]-points[on])/FS <= high:

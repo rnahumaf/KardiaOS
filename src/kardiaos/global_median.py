@@ -15,9 +15,10 @@ from .processing import scale_and_signs
 from .signal import six_leads
 from .measurement_engine import empty
 from .rhythm_analysis import analyze_premature, p_association, rhythm_coverage, similarity
+from .landmark_review import LABELS, review_state
 
 FS = 300
-VERSION = 'global-median-7'
+VERSION = 'global-median-8'
 LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
 METHOD = 'Limites globais nas medianas alinhadas da gravação completa'
 
@@ -163,8 +164,8 @@ def align_beats(candidates):
     return accepted, rejected
 
 
-def global_boundaries(medians, anchor, rr):
-    return delineate_medians(medians, anchor, rr)
+def global_boundaries(medians, anchor, rr, stacks=None):
+    return delineate_medians(medians, anchor, rr, stacks)
 
 
 def analyze(recording, cancelled=lambda: False):
@@ -245,7 +246,7 @@ def analyze(recording, cancelled=lambda: False):
     if len(rr) >= 2 and np.all((rr >= .25) & (rr <= 3)):
         metrics['heart_rate'].update(value=round(60 / median_rr, 1), status='experimental', reason='',
                                      method=rhythm['method'], rr_median_seconds=median_rr)
-    representatives = {}; stacks = {}
+    representatives = {}; stacks = {}; review = {}
     points, sources, local = {}, {}, {}
     if accepted:
         stacks = {}
@@ -260,12 +261,22 @@ def analyze(recording, cancelled=lambda: False):
             for kind in ('qrs', 'pt'):
                 medians[lead][kind], smoothing[lead][kind] = smooth_median(medians[lead][kind])
         if len(accepted) >= 3 and median_rr:
-            points, sources, local = global_boundaries(medians, pre, median_rr)
+            points, sources, local = global_boundaries(medians, pre, median_rr, stacks)
+        review = review_state(r, medians, audit['source_centers'], VERSION, factor, points, pre, sources)
+        result['pipeline']['landmark_origin'] = review['origin']
+        if review['origin'] == 'manual':
+            saved = review['saved']
+            points = dict(saved['points'])
+            sources = {key: dict(index=value, supporting_leads=[saved['point_leads'][key]], method='manual')
+                       for key, value in points.items()}
+        if points:
             rhythm['p_association'] = p_association(stacks['pt'], medians, points,
                                                    [c['start'] for c in accepted])
         for ch, lead in enumerate(names):
             representatives[lead] = dict(unsmoothed_values_mv=unsmoothed[lead]*factor, postprocessing=smoothing[lead], values_mv=medians[lead]['qrs'] * factor, raw_values_mv=medians[lead]['raw'] * factor,
                 pt_values_mv=medians[lead]['pt'] * factor, aligned_beats_mv=stacks['qrs'][:, :, ch] * factor,
+                aligned_quartiles_mv={kind: np.percentile(stacks[kind][:, :, ch], [25, 75], axis=0)*factor
+                                      for kind in ('qrs', 'pt')},
                 time_seconds=(np.arange(pre + post + 1) - pre) / FS, r_index=pre,
                 markers=[dict(kind=key, index=value, time_seconds=(value - pre) / FS) for key, value in points.items()],
                 group_size=len(accepted), discarded_beats=len(excluded),
@@ -294,8 +305,20 @@ def analyze(recording, cancelled=lambda: False):
     result.update(status='experimental' if representatives else 'unavailable', global_fiducials=dict(r=pre, **points),
                   boundary_provenance=sources, local_candidates=local,
                   rr_variability=float(rr.std() / rr.mean()) if len(rr) else None)
+    result['landmark_review'] = review
     from .measurement_quality import assess,attach_metrics
-    attach_metrics(result,assess(stacks,names,pre,median_rr,points,sources,factor,cancelled))
+    if review.get('origin') == 'manual':
+        result['technical_quality'] = dict(source='manual', subsets=[], replicates=[], boundaries={
+            key: dict(status='reviewed' if key in points else 'unavailable', reason='') for key in LABELS})
+        for key in ('p_duration', 'qrs_duration', 'pr', 'qt', 'qtc_f'):
+            metric = metrics[key]
+            metric.update(method='Marcos globais revisados manualmente', boundary_source='manual')
+            if metric['value'] is not None:
+                metric.update(status='reviewed', quality=dict(status='reviewed', reason=''))
+            elif key != 'qtc_f':
+                metric['reason'] = 'A revisão deixou um ou mais limites desta medida sem marcação.'
+    else:
+        attach_metrics(result,assess(stacks,names,pre,median_rr,points,sources,factor,cancelled))
     result['descriptions'] = [dict(id='qrs_width', status='descriptive' if qrs is not None else 'unavailable',
         text=f'QRS global: {qrs:g} ms.' if qrs is not None else 'QRS global indisponível.',
         criterion='Início mais precoce e fim mais tardio sustentados pelas medianas das derivações disponíveis; estimativa exploratória, sem classificação diagnóstica.')]
@@ -310,8 +333,9 @@ def analyze(recording, cancelled=lambda: False):
             text=f"Batimento em {(r.times[item['sample']] - r.meta['start']):.3f} s fora da mediana.", reason=item['reason']))
     for key, item in sources.items():
         label = {'pon':'início P','poff':'fim P','qon':'início QRS','qoff':'fim QRS','ton':'início T','toff':'fim T'}[key]
+        origin = 'Derivação de referência na revisão' if review.get('origin') == 'manual' else 'Sustentado por'
         result['descriptions'].append(dict(id='boundary_' + key, status='descriptive', text=f'{label}: {(item["index"] - pre) / FS * 1000:.1f} ms em relação ao QRS.',
-            criterion='Sustentado por ' + ', '.join(item['supporting_leads']) + '; aplicado a todas as medianas.'))
+            criterion=origin+' '+', '.join(item['supporting_leads'])+'. Marco global aplicado a todas as medianas.'))
     for key,quality in result['technical_quality']['boundaries'].items():
         if quality.get('reason'):result['descriptions'].append(dict(id='quality_'+key,status='descriptive',text=quality['reason'],criterion='Estabilidade técnica nas medianas de subconjuntos; não representa acurácia clínica.'))
     for lead in names:

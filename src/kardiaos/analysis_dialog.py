@@ -11,6 +11,7 @@ from .timing_plot import TimingPlot
 from .evidence_view import EvidencePanel
 from html import escape
 from .processing import profile_label,profile_info,snapshot
+from .landmark_review import origin_label, save_review, set_review_active
 
 
 def label(text):
@@ -35,12 +36,19 @@ class AutomaticThread(QThread):
 class AutomaticAnalysisDialog(QDialog):
     def __init__(self,recording,parent=None,autostart=True):
         super().__init__(parent);self.recording=recording;self.thread=None;self.result=None;self.closing=False
+        self.review_changed = False
         self.setObjectName('analysisDetails')
         self.setWindowTitle('KardiaOS — detalhes da análise');self.resize(1120,760);self.setMinimumSize(850,650)
         box=QVBoxLayout(self);box.setContentsMargins(18,16,18,14);box.setSpacing(8)
         heading=QHBoxLayout();heading.setSpacing(18)
         title=label('Detalhes da análise');title.setStyleSheet('font-size:18px;font-weight:600');heading.addWidget(title)
         self.evidence_label=label(profile_label(recording));self.evidence_label.setObjectName('muted');self.evidence_label.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter);heading.addWidget(self.evidence_label,1);box.addLayout(heading)
+        self.review_button = QPushButton('Revisar marcos…')
+        self.review_button.setEnabled(False); self.review_button.clicked.connect(self.edit_landmarks)
+        heading.addWidget(self.review_button)
+        self.save_review_button = QPushButton('Salvar captura…')
+        self.save_review_button.hide(); self.save_review_button.clicked.connect(self.save_review_file)
+        heading.addWidget(self.save_review_button)
         self.tabs=QTabWidget();box.addWidget(self.tabs,1)
         def page(title):
             scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -91,7 +99,7 @@ class AutomaticAnalysisDialog(QDialog):
         mb.addWidget(self.measure_table);mb.addWidget(label('Amplitude por derivação · mV estimados'))
         self.feature_table=QTableWidget(0,7);self.feature_table.setHorizontalHeaderLabels(['Derivação','P (mV)','Q (mV)','Q (ms)','T (mV)','J (mV)','ST+60 (mV)'])
         self.feature_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);mb.addWidget(self.feature_table)
-        mb.addWidget(label('QTcF: Fridericia, QT(ms) / RR(s)^(1/3). Valores automáticos, sem revisão clínica.'));mb.addStretch()
+        mb.addWidget(label('QTcF por Fridericia, calculado com o QT e o RR mediano elegíveis.'));mb.addStretch()
         limits=QWidget();outer=QVBoxLayout(limits);outer.setContentsMargins(0,0,0,0)
         self.curve_overview=QWidget();outer.addWidget(self.curve_overview);lb=QVBoxLayout(self.curve_overview);lb.setContentsMargins(4,12,4,8);lb.setSpacing(8)
         selection=QHBoxLayout();selection.setSpacing(8);caption=label('Derivação');selection.addWidget(caption)
@@ -159,6 +167,34 @@ class AutomaticAnalysisDialog(QDialog):
         if hasattr(self,'feature_table'):QTimer.singleShot(0,self.fit_tables)
 
     def busy(self):return self.thread is not None and self.thread.isRunning()
+    def save_review_file(self):
+        parent = self.parent()
+        if parent is not None and parent.save():
+            self.review_changed = False
+            self.status.setText('Captura e revisão dos marcos salvas no arquivo .kardia.')
+
+    def edit_landmarks(self):
+        if self.busy() or not self.result or not self.recording:
+            return
+        from .landmark_editor import LandmarkEditor
+        result = self.result
+        editor = LandmarkEditor(result, self)
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        if result.get('source_key') != analysis_key(self.recording):
+            QMessageBox.warning(self, 'Revisão dos marcos', 'A captura mudou. Confira a mediana atualizada.')
+            self.start(force=True)
+            return
+        state = result['measurements']['landmark_review']
+        if editor.automatic_requested:
+            set_review_active(self.recording, state, False)
+        else:
+            save_review(self.recording, state, editor.points, editor.point_leads)
+        self.review_changed = True
+        parent = self.parent()
+        if parent is not None and hasattr(parent, 'dirty'): parent.dirty = True
+        self.start(force=True)
+
     def neural_analysis(self):
         if self.busy() or self.recording is None:return
         from .research_dialog import ResearchDialog
@@ -167,6 +203,8 @@ class AutomaticAnalysisDialog(QDialog):
         dialog.exec()
     def start(self,force=False):
         if self.busy() or self.closing:return
+        self.review_button.setEnabled(False)
+        self.save_review_button.hide()
         self.show_all_curves();self.evidence_panel.set_result({})
         self.result=None;self.clear_rule_tables();self.measure_table.setRowCount(0)
         self.classification_summary.setText('Atualizando a análise…');self.findings_label.clear();self.pending_label.clear();self.feature_table.setRowCount(0)
@@ -200,7 +238,7 @@ class AutomaticAnalysisDialog(QDialog):
         v=self.measurements_by_lead[index]
         self.measure_note.setText(f"D{v['lead']} · {v.get('offset_seconds',0):g}–{v.get('offset_seconds',0)+v.get('duration_seconds',0):g} s · tempos experimentais; 300 Hz nominais")
         if v.get('global_intervals'):
-            self.measure_note.setText(f"Gravação completa · {v.get('duration_seconds',0):.1f} s · intervalos globais das derivações disponíveis")
+            self.measure_note.setText(f"Gravação completa · {v.get('duration_seconds',0):.1f} s · intervalos globais · {origin_label(v)}")
         metrics=list(v['metrics'].values());self.measure_table.setRowCount(len(metrics))
         for row,m in enumerate(metrics):
             method=m.get('reason') or m.get('formula') or m.get('method') or f"Mediana de {m.get('accepted_beats',0)}/{m.get('candidate_beats',0)} batimentos delimitados."
@@ -317,7 +355,12 @@ class AutomaticAnalysisDialog(QDialog):
         if self.recording is not None and cache_analysis(self.recording,result):
             parent=self.parent()
             if parent is not None and hasattr(parent,'background_result'):parent.background_result(self.recording,result)
-        self.status.setText({'completed':f"Regras concluídas em {result.get('elapsed_seconds',0):.2f} s · redes somente sob solicitação.",'cancelled':'Análise interrompida; resultados parciais.'}.get(result['status'],result.get('reason','Falha local.')))
+        state = result.get('measurements', {}).get('landmark_review', {})
+        self.review_button.setEnabled(bool(state and result.get('representative')))
+        self.save_review_button.setVisible(bool(state.get('saved') and callable(getattr(self.parent(), 'save', None))))
+        status = state.get('notice') or origin_label(result.get('measurements', {}))
+        if self.review_changed: status += ' · Salve a captura para gravar a revisão no arquivo .kardia.'
+        self.status.setText({'completed':status,'cancelled':'Análise interrompida; resultados parciais.'}.get(result['status'],result.get('reason','Falha local.')))
     def on_worker_finished(self):
         self.reference_button.setEnabled(True);self.run_button.setEnabled(True);self.cancel_button.setEnabled(False)
         self.neural_button.setEnabled(True);self.cancel_button.hide()

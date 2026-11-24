@@ -81,6 +81,39 @@ def check_research():
         dialog.close()
 
 
+def check_landmark_review(record, analysis):
+    from .automatic_analysis import automatic_analysis
+    from .landmark_editor import KEYS, LandmarkEditor
+    from .landmark_review import save_review
+    from .processing import snapshot
+    from .signal import FS
+
+    editor = LandmarkEditor(analysis)
+    editor.table.selectRow(KEYS.index('qoff'))
+    editor.dispersion.setChecked(True)
+    automatic_points = editor.state['automatic_points']
+    editor.forward.click()
+    assert editor.points['qoff'] == automatic_points['qoff'] + 1
+    assert editor.apply_button.isEnabled() and not editor.plot.grab().isNull()
+    editor.apply_button.click()
+    with tempfile.TemporaryDirectory(prefix='kardiaos-synthetic-') as folder:
+        path = Path(folder) / 'review.kardia'
+        copy = snapshot(record)
+        save_review(copy, editor.state, editor.points, editor.point_leads)
+        save_recording(path, copy)
+        reopened = load_recording(path)
+    reviewed = automatic_analysis(reopened)
+    expected_ms = round((editor.points['qoff'] - editor.points['qon']) * 1000 / FS, 1)
+    metrics = reviewed['measurements']['metrics']
+    assert metrics['qrs_duration']['value'] == expected_ms
+    preview = OfflinePreview(reopened, analysis=reviewed, autostart=False)
+    assert preview.ready() and preview.point_origin.currentData() == 'manual'
+    preview.choose_origin(preview.point_origin.findData('automatic'))
+    assert preview.ready() and preview.analysis['measurements']['global_fiducials'] == analysis['measurements']['global_fiducials']
+    assert reopened.meta['landmark_reviews']['six']['active']
+    preview.close()
+
+
 def check_automatic():
     from .automatic_analysis import automatic_analysis,cache_analysis
     from .analysis_dialog import AutomaticAnalysisDialog
@@ -132,9 +165,10 @@ def check_automatic():
     assert record.mode_at() == 6
     preview=OfflinePreview(record);assert preview.thread is None and preview.ready() and not preview.page_image.isNull();preview.close()
     assert not render_page(pdf_bytes(record,layout='di',analysis=result)).isNull();dialog.close()
+    check_landmark_review(record, result)
     # The optional referenced profile still requires channel-specific evidence.
     set_profile(record,REFERENCED);record.meta['synthetic']=False
     normal=automatic_analysis(record);assert not normal['scenarios'] and normal['classification']
     assert normal['qt']['source']=='global_medians_only'
     assert not render_page(pdf_bytes(record,layout='di',analysis=normal)).isNull()
-    return dict(analysis_and_ui_seconds=round(elapsed,3))
+    return dict(analysis_and_ui_seconds=round(elapsed,3), landmark_review_roundtrip=True)

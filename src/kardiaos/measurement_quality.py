@@ -6,7 +6,7 @@ Observed ranges are sensitivity envelopes, never clinical confidence intervals.
 import numpy as np
 from .median_landmarks import smooth_median, delineate_medians
 
-VERSION = 'median-stability-4'
+VERSION = 'median-stability-5'
 MIN_BEATS = 10
 LIMIT_SAMPLES = dict(pon=6, poff=6, qon=3, qoff=3, ton=9, toff=9)
 LABELS = dict(pon='Início de P', poff='Fim de P', qon='Início do QRS',
@@ -30,15 +30,16 @@ def assess(stacks, names, anchor, rr, points, sources, factor, cancelled=lambda:
         ('alternados ímpares',np.arange(1,n,2))]
     for name,indices in groups:
         if cancelled():raise Cancelled()
-        medians={lead:{kind:smooth_median(np.median(stacks[kind][indices,:,ch],axis=0))[0]
+        subset = {kind: stacks[kind][indices] for kind in ('qrs', 'pt')}
+        medians={lead:{kind:smooth_median(np.median(subset[kind][:,:,ch],axis=0))[0]
                       for kind in ('qrs','pt')} for ch,lead in enumerate(names)}
-        p,provenance,_=delineate_medians(medians,anchor,rr)
+        p,provenance,_=delineate_medians(medians,anchor,rr,subset)
         rejected_onsets.extend(onset_reviews(provenance, name))
         values={key:round((p[off]-p[on])/.3,1) if on in p and off in p else None
                 for key,(on,off) in INTERVALS.items()}
         values['qtc_f']=round(values['qt']/np.cbrt(rr),1) if values['qt'] is not None and values['qrs_duration'] is not None and values['qrs_duration']<120 else None
         reps={lead:dict(values_mv=m['qrs']*factor,pt_values_mv=m['pt']*factor,
-                       aligned_beats_mv=stacks['qrs'][indices,:,ch]*factor)
+                       aligned_beats_mv=subset['qrs'][:,:,ch]*factor)
               for ch,(lead,m) in enumerate(medians.items())}
         result['subsets'].append(dict(name=name,beat_count=len(indices)))
         analysis_points = dict(p)
@@ -100,6 +101,7 @@ def alerts(measurement):
 def detail(metric):
     quality=metric.get('quality')
     if not quality:return ''
+    if quality['status']=='reviewed':return 'Marcos conferidos na revisão manual.'
     text=quality['reason']
     if quality['status']!='unverified':
         lo,hi=quality['range_ms']
@@ -120,7 +122,7 @@ RULE_BOUNDARIES = {
 def guard_rules(recording, measurement, rows):
     from .rule_analysis import classify
     quality=measurement.get('technical_quality')
-    if not quality:return
+    if not quality or quality.get('source') == 'manual':return
     variants=[]
     for replica in quality['replicates']:
         m=dict(measurement,metrics={k:dict(v,value=replica['values'].get(k,v['value'])) for k,v in measurement['metrics'].items()})

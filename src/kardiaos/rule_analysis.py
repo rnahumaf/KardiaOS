@@ -9,7 +9,7 @@ from .orientation import normal_signs
 from .morphology_rules import describe_wave
 from .signal import FS
 
-VERSION = 'limb-rules-8'
+VERSION = 'limb-rules-9'
 MIN_RHYTHM_COVERAGE = .90
 MAX_RHYTHM_GAP_SECONDS = 2.
 MIN_CONTINUOUS_RHYTHM_SECONDS = 10
@@ -274,6 +274,9 @@ def classify(recording, measurement, representatives, *, feature_data=None, chec
         else:
             summary='Achados na análise automática; consulte os critérios.'
         status='partial' if missing else 'findings'
+    elif pd is not None and qrs is None and {'pon', 'poff'}.issubset(measurement.get('global_fiducials', {})):
+        summary = 'Onda P identificada na mediana' + (' de DI' if only_di else '') + '. Duração do QRS indeterminada.'
+        status = 'partial'
     else: summary='Análise automática inconclusiva';status='inconclusive'
     return dict(version=VERSION,status=status,summary=summary,context=c,rules=rows,features=data,
         morphology=[r for r in rows if r['presentation']=='description'],

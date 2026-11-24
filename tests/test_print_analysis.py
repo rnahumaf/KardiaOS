@@ -1,4 +1,5 @@
 import io,time
+import numpy as np
 import pytest
 from pypdf import PdfReader
 from PySide6.QtWidgets import QApplication
@@ -9,7 +10,22 @@ from test_measurements import signal_record
 from test_automatic_analysis import fake_infer
 from test_analysis_dialog import wait
 
-def test_one_sheet_has_patient_timestamp_and_metrics_without_scores_or_raw_qt():
+
+def test_p_only_measurement_reaches_the_report_without_filling_pr_or_qrs(monkeypatch):
+    r = signal_record()
+    r.review_as_di = True
+    monkeypatch.setattr('kardiaos.global_median.dsp.preprocess', lambda x: np.zeros_like(x))
+    a = automatic_analysis(r)
+    metrics = a['measurements']['metrics']
+    assert metrics['p_duration']['value'] == pytest.approx(100, abs=25)
+    assert all(metrics[key]['value'] is None for key in ('pr', 'qrs_duration', 'qt', 'qtc_f'))
+    assert a['classification']['status'] == 'partial' and not a['classification']['sinus_supported']
+    text = PdfReader(io.BytesIO(pdf_bytes(r, analysis=a))).pages[0].extract_text()
+    assert 'Onda P identificada na mediana de DI' in text
+    assert f"P: {metrics['p_duration']['value']:g} ms" in text
+    assert 'PR: indisponível' in text and 'QRS: indisponível' in text
+
+def test_one_sheet_has_patient_timestamp_and_all_supported_intervals_without_scores():
     r=signal_record()
     r.meta.update(patient_name='Paciente Teste da Conceição', recorded_at='2025-03-04T14:27:01-03:00')
     a=automatic_analysis(r,infer=fake_infer);plan=page_plan(r,layout='di',analysis=a)
@@ -21,10 +37,10 @@ def test_one_sheet_has_patient_timestamp_and_metrics_without_scores_or_raw_qt():
     offset = a['report_window']['offset_seconds']
     assert f'Janela automática {offset:.3f}–{offset+10:.3f} s' in text
     metrics = next(line for line in text.splitlines() if 'FC: 60 bpm' in line)
-    for term in ('P:', 'QRS:', 'QTcF:', 'Fridericia'):
+    for term in ('P:', 'PR:', 'QRS:', 'QT:', 'QTcF:', 'Fridericia'):
         assert term in metrics
     assert 'PR prolongado; possível atraso de condução AV' in text
-    assert 'QTc:' not in text and 'QT:' not in text and '0.2500' not in text
+    assert 'QTc:' not in text and '0.2500' not in text
     assert not a['scenarios']
     assert a['classification']['summary'] in text
 

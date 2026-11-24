@@ -769,6 +769,9 @@ class Window(QMainWindow):
     def refresh_measure_panel(self,result=None):
         classification=(result or {}).get('classification',{})
         self.analysis_summary.setText(classification.get('summary') or (result or {}).get('reason') or ('Análise automática indisponível; consulte os detalhes.' if result else 'Análise automática · aguardando captura'))
+        review = (result or {}).get('measurements', {}).get('landmark_review', {})
+        if review.get('origin') == 'manual':
+            self.analysis_summary.setText(self.analysis_summary.text()+' · Marcos revisados manualmente')
         findings = []
         for item in classification.get('findings', []):
             if classification.get('sinus_supported') and item['id'] in ('irregular', 'premature'):
@@ -841,6 +844,7 @@ class Window(QMainWindow):
 
     def background_result(self,record,result):
         if self.recording is not record:return
+        if result.get('source_key') and result['source_key'] != analysis_key(record):return
         if cache_analysis(record,result):
             self.paper.analysis=result;self.paper.update()
             self.refresh_measure_panel(result)
@@ -859,7 +863,13 @@ class Window(QMainWindow):
         AutomaticAnalysisDialog(self.recording, self).exec()
 
     def report(self):
-        return pdf_bytes(self.recording, self.speed.currentData(), self.gain.currentData(), self.raw_check.isChecked())
+        analysis = cached_analysis(self.recording) if self.recording is not None else None
+        if analysis is None and self.recording is not None and self.recording.meta.get('end') is not None:
+            from .automatic_analysis import automatic_analysis
+            analysis = automatic_analysis(self.recording)
+            cache_analysis(self.recording, analysis)
+        return pdf_bytes(self.recording, self.speed.currentData(), self.gain.currentData(),
+                         self.raw_check.isChecked(), analysis=analysis)
 
     def export_pdf(self):
         filename,_=QFileDialog.getSaveFileName(self,'Exportar PDF','ecg.pdf','PDF (*.pdf)')

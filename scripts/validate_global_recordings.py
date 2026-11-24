@@ -1,16 +1,19 @@
 """Read-only local acceptance; never persist captures, plots or measurements."""
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 import sys
 import time
 import numpy as np
+from pypdf import PdfReader
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from kardiaos.recording import load_recording
 from kardiaos.automatic_analysis import automatic_analysis
-from kardiaos.report import page_plan, pdf_bytes
+from kardiaos.landmark_review import origin_label
+from kardiaos.report import measurement_line, page_plan, pdf_bytes
 
 
 def main():
@@ -25,7 +28,8 @@ def main():
     from kardiaos.preview import render_page
     from kardiaos.analysis_dialog import AutomaticAnalysisDialog
     app = QApplication.instance() or QApplication([])
-    totals = dict(cases=len(files), passed=0, six_lead_cases=0, one_lead_cases=0, model_runs=0)
+    totals = dict(cases=len(files), passed=0, six_lead_cases=0, one_lead_cases=0, model_runs=0,
+                  inconclusive=0, p_measured=0, qrs_measured=0)
     timings=[]
     for index, path in enumerate(files, 1):
         digest = hashlib.sha256(path.read_bytes()).digest()
@@ -54,6 +58,14 @@ def main():
             original_median = np.asarray(rep['unsmoothed_values_mv'])
             assert max(abs(np.asarray(rep['values_mv']) - original_median)) <= .015 * np.ptp(original_median) + 1e-12
         m = result['measurements']
+        points = m['global_fiducials']
+        for key, on, off in [('p_duration', 'pon', 'poff'), ('qrs_duration', 'qon', 'qoff'),
+                             ('pr', 'pon', 'qon'), ('qt', 'qon', 'toff')]:
+            expected_ms = round((points[off]-points[on])*1000/300, 1) if on in points and off in points else None
+            assert m['metrics'][key]['value'] == expected_ms, 'Interval and displayed endpoints disagree'
+        totals['inconclusive'] += result['classification']['status'] == 'inconclusive'
+        totals['p_measured'] += m['metrics']['p_duration']['value'] is not None
+        totals['qrs_measured'] += m['metrics']['qrs_duration']['value'] is not None
         assert m['pipeline']['detector_source'] == 'displayed_smoothed_medians'
         assert m['global_intervals'] and not m['fiducials'], 'Individual delineation leaked'
         assert m['duration_seconds'] > 10, 'Measurements restricted to report window'
@@ -64,7 +76,12 @@ def main():
             totals['model_runs'] += 1
         plan = page_plan(r, analysis=result)
         assert sum(bool(row['template']) for row in plan['rows']) == expected
-        assert not render_page(pdf_bytes(r, analysis=result)).isNull(), 'PDF rendering failed'
+        pdf = pdf_bytes(r, analysis=result)
+        assert not render_page(pdf).isNull(), 'PDF rendering failed'
+        if plan['inferred']:
+            printed = PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+            assert all(part in printed for part in measurement_line(result).split(' | ')), 'Missing printed measurement'
+            assert origin_label(m) in printed and result['classification']['summary'] in printed, 'Missing report conclusion or source'
         app.processEvents()
         np.testing.assert_array_equal(r.raw, original)
         assert hashlib.sha256(path.read_bytes()).digest() == digest, 'Original file changed'
