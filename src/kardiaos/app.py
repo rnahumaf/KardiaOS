@@ -116,6 +116,7 @@ class Window(QMainWindow):
         self.settings = settings if settings is not None else QSettings("KardiaOS", "KardiaOS")
         self._preferences_ready=False
         self._analysis_thread=None;self._analysis_pending=False;self._closing_analysis=False
+        self._requested_landmarks = None
         self._analysis_timer=QTimer(self);self._analysis_timer.setSingleShot(True);self._analysis_timer.setInterval(400);self._analysis_timer.timeout.connect(self.start_background_analysis)
         self.recording = None
         self.stream = None
@@ -184,7 +185,7 @@ class Window(QMainWindow):
         self.open_button = QPushButton("Abrir captura")
         self.open_button.clicked.connect(self.open_recording)
         self.save_button = QPushButton("Salvar bruto")
-        self.save_button.setToolTip("Salva as amostras originais e os dados da captura, incluindo o nome preenchido.")
+        self.save_button.setToolTip("Salva as amostras originais, os dados da captura e a revisão dos marcos.")
         self.save_button.clicked.connect(self.save)
         self.pdf_button = QPushButton("Exportar PDF")
         self.pdf_button.clicked.connect(self.export_pdf)
@@ -312,7 +313,14 @@ class Window(QMainWindow):
         side_scroll.setFixedWidth(260)
         side_scroll.setWidget(side)
         right=QWidget();right.setFixedWidth(260);right_column=QVBoxLayout(right);right_column.setContentsMargins(0,0,0,0);right_column.setSpacing(8)
-        right_column.addWidget(label('MEDIDAS', 'section'))
+        measure_heading = QHBoxLayout()
+        measure_heading.addWidget(label('MEDIDAS', 'section'))
+        measure_heading.addStretch()
+        self.landmark_button = QPushButton('Revisar marcos…')
+        self.landmark_button.setToolTip('Ajustar o início e o fim de P, QRS e T na mediana da captura.')
+        self.landmark_button.clicked.connect(self.open_landmark_review)
+        measure_heading.addWidget(self.landmark_button)
+        right_column.addLayout(measure_heading)
         self.measure_table=QTableWidget(6,2);self.measure_table.setAccessibleName('Medidas do ECG')
         self.measure_table.horizontalHeader().hide();self.measure_table.verticalHeader().hide()
         self.measure_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -371,9 +379,7 @@ class Window(QMainWindow):
         screen = self.screen()
         key = screen_key(screen)
         self._screen_key = key
-        x, y = screen_geometry(screen)
-        self.paper.ppmx = float(self.settings.value(f"screens/{key}/x", x))
-        self.paper.ppmy = float(self.settings.value(f"screens/{key}/y", y))
+        self.paper.ppmx, self.paper.ppmy = screen_geometry(screen, self.settings)
         source = "ajustada com régua" if self.settings.value(f"screens/{key}/manual", False, type=bool) else "dimensões informadas pelo monitor"
         physical = screen.physicalSize()
         self.paper_note.setText(f"Grade física: {source} · amplitudes estimadas pelo perfil ativo.")
@@ -643,6 +649,7 @@ class Window(QMainWindow):
         self.open_button.setEnabled(not self.live)
         self.save_button.setEnabled(have and not self.live)
         self.research_button.setEnabled(stable and not self.live)
+        self.landmark_button.setEnabled(bool(stable and not self.live and self._requested_landmarks is None))
         self.age.setEnabled(not self.live);self.sex.setEnabled(not self.live)
         self.patient_name.setEnabled(self.recording is not None)
         self.pdf_button.setEnabled(stable and not self.live)
@@ -767,6 +774,9 @@ class Window(QMainWindow):
         self.schedule_analysis(force=True)
 
     def refresh_measure_panel(self,result=None):
+        if result is None:
+            self._requested_landmarks = None
+            self.update_buttons()
         classification=(result or {}).get('classification',{})
         self.analysis_summary.setText(classification.get('summary') or (result or {}).get('reason') or ('Análise automática indisponível; consulte os detalhes.' if result else 'Análise automática · aguardando captura'))
         review = (result or {}).get('measurements', {}).get('landmark_review', {})
@@ -820,6 +830,8 @@ class Window(QMainWindow):
         self.save_preferences()
         if not self.autorun.isChecked():
             self._analysis_timer.stop();self._analysis_pending=False
+            self._requested_landmarks = None
+            self.update_buttons()
             if self._analysis_thread is not None and self._analysis_thread.isRunning():self._analysis_thread.requestInterruption()
         else:self.schedule_analysis()
 
@@ -851,6 +863,12 @@ class Window(QMainWindow):
             self.raw_check.setToolTip('Revisão: filtros de fase zero.\nAo vivo: filtros causais e buffer de 60 ms.')
         elif result.get('status')=='cancelled':self.analysis_summary.setText('Análise interrompida.')
         else:self.analysis_summary.setText(result.get('reason','Processamento alterado; reavaliando o registro.'))
+        if self._requested_landmarks is not None and self._requested_landmarks == result.get('source_key'):
+            if result.get('status') == 'cancelled' and self._analysis_pending:
+                return
+            self._requested_landmarks = None
+            self.update_buttons()
+            QTimer.singleShot(0, self, lambda: self.show_landmark_review(record, result))
 
     def background_finished(self):
         if self._closing_analysis:self.close()
@@ -861,6 +879,42 @@ class Window(QMainWindow):
             return
         from .analysis_dialog import AutomaticAnalysisDialog
         AutomaticAnalysisDialog(self.recording, self).exec()
+
+    def open_landmark_review(self):
+        record = self.recording
+        if self.live or record is None or record.meta.get('start') is None or self._requested_landmarks is not None:
+            return
+        result = cached_analysis(record)
+        if result is not None:
+            self.show_landmark_review(record, result)
+            return
+        # Reuse any in-flight analysis of this capture, including a manual request with autorun off.
+        self._requested_landmarks = analysis_key(record)
+        self.update_buttons()
+        self._analysis_timer.stop()
+        job = self._analysis_thread
+        if job and job.isRunning() and job.request_key == self._requested_landmarks and not job.isInterruptionRequested():
+            return
+        self.start_background_analysis()
+
+    def show_landmark_review(self, record, result):
+        if (self._closing_analysis or not self.isVisible() or self.live or record is not self.recording
+                or result.get('source_key') != analysis_key(record)):
+            return
+        if (result.get('status') != 'completed' or not result.get('representative')
+                or not result.get('measurements', {}).get('landmark_review')):
+            self.statusBar().showMessage(result.get('reason') or 'A captura não forneceu uma mediana para revisar.', 8000)
+            return
+        from .landmark_editor import review_landmarks
+        try:
+            if not review_landmarks(record, result, self, self.paper):
+                return
+        except ValueError as exc:
+            QMessageBox.warning(self, 'Revisão dos marcos', str(exc))
+        else:
+            self.dirty = True
+            self.statusBar().showMessage('Revisão aplicada. Use Salvar bruto para gravá-la na captura.', 8000)
+        self.schedule_analysis(force=True)
 
     def report(self):
         analysis = cached_analysis(self.recording) if self.recording is not None else None
@@ -939,6 +993,9 @@ class Window(QMainWindow):
 
     def closeEvent(self, event):
         self._analysis_timer.stop()
+        if self._requested_landmarks is not None:
+            self._requested_landmarks = None
+            self.update_buttons()
         if not self.live and self._analysis_thread is not None and self._analysis_thread.isRunning():
             self._closing_analysis=True;self._analysis_thread.requestInterruption();event.ignore();return
         if self.live:

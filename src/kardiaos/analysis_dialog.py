@@ -11,7 +11,7 @@ from .timing_plot import TimingPlot
 from .evidence_view import EvidencePanel
 from html import escape
 from .processing import profile_label,profile_info,snapshot
-from .landmark_review import origin_label, save_review, set_review_active
+from .landmark_review import origin_label
 
 
 def label(text):
@@ -29,7 +29,7 @@ class AutomaticThread(QThread):
             kwargs={'technical_mode':True} if self.technical_mode else {}
             if self.offset!=0 or self.duration is not None:kwargs.update(offset=self.offset,duration=self.duration)
             result=automatic_analysis(self.recording,self.update.emit,self.isInterruptionRequested,**kwargs)
-        except Exception as exc:result=dict(status='failed',reason='Falha local: '+type(exc).__name__,scenarios=[])
+        except Exception as exc:result=dict(status='failed',reason='Falha local: '+type(exc).__name__,scenarios=[],source_key=self.request_key)
         self.result_ready.emit(result)
 
 
@@ -176,20 +176,14 @@ class AutomaticAnalysisDialog(QDialog):
     def edit_landmarks(self):
         if self.busy() or not self.result or not self.recording:
             return
-        from .landmark_editor import LandmarkEditor
-        result = self.result
-        editor = LandmarkEditor(result, self)
-        if editor.exec() != QDialog.DialogCode.Accepted:
-            return
-        if result.get('source_key') != analysis_key(self.recording):
-            QMessageBox.warning(self, 'Revisão dos marcos', 'A captura mudou. Confira a mediana atualizada.')
+        from .landmark_editor import review_landmarks
+        try:
+            if not review_landmarks(self.recording, self.result, self, getattr(self.parent(), 'paper', None)):
+                return
+        except ValueError as exc:
+            QMessageBox.warning(self, 'Revisão dos marcos', str(exc))
             self.start(force=True)
             return
-        state = result['measurements']['landmark_review']
-        if editor.automatic_requested:
-            set_review_active(self.recording, state, False)
-        else:
-            save_review(self.recording, state, editor.points, editor.point_leads)
         self.review_changed = True
         parent = self.parent()
         if parent is not None and hasattr(parent, 'dirty'): parent.dirty = True

@@ -89,7 +89,7 @@ originais. Salvar novamente grava a versão 2, sem alterar os valores recebidos.
 
 Capturas pessoais e relatórios não devem entrar no Git. Os testes usam dados sintéticos.
 
-## Análise local e revisão dos marcos (0.18.0 exploratória)
+## Análise local e revisão dos marcos (0.18.1 exploratória)
 
 A gravação completa alimenta um alinhamento comum às derivações: cada batimento
 recebe o mesmo deslocamento temporal em todas elas. Batimentos de morfologia
@@ -109,15 +109,20 @@ deflexão em diferentes escalas e nos batimentos individuais. Cada intervalo usa
 seus próprios limites. Uma P com início e fim sustentados pode ter duração
 publicada mesmo quando o QRS não permite medir o PR.
 
-Em **Detalhes da análise**, abra **Revisar marcos…** para conferir o início e
-o fim de P, QRS e T na mediana. Selecione um marco e a derivação, clique ou
-arraste na curva e use as setas para ajustar uma amostra por vez (3,33 ms).
+Na tela inicial, clique em **Revisar marcos…** ao lado de **MEDIDAS** para
+conferir o início e o fim de P, QRS e T. O editor abre com a mediana inteira
+a 100%, na velocidade e no ganho do traçado principal. Posicione o cursor
+sobre o trecho desejado e role a roda do mouse para ampliar ou reduzir.
+**Tamanho original** volta à escala inicial. Selecione um marco e a derivação,
+clique ou arraste na curva e use as setas para ajustar uma amostra por vez
+(3,33 ms).
 **Dispersão dos batimentos** mostra a faixa entre os percentis 25 e 75 dos
 batimentos alinhados. Use **Sem marca** quando o limite continuar duvidoso.
 **Confirmar marcos e aplicar** recalcula os intervalos e os critérios
 determinísticos a partir dos pontos exibidos. FC e RR vêm da sequência
-original. **Salvar captura…** grava a revisão no arquivo `.kardia` e permite
-retomá-la ao reabrir a mesma mediana.
+original. **Salvar bruto** na tela inicial grava a revisão no arquivo
+`.kardia`. O editor também está em **Detalhes da análise**, onde
+**Salvar captura…** grava a mesma revisão.
 
 O painel inicial mostra classificação e uma tabela lateral compacta com FC, PR,
 QRS, QT/QTc e duração de P, acima dos controles de aquisição. Quando o QTcF

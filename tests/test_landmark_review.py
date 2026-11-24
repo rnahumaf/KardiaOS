@@ -4,15 +4,17 @@ import io
 import numpy as np
 import pytest
 from pypdf import PdfReader
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from kardiaos.analysis_dialog import AutomaticAnalysisDialog
-from kardiaos.automatic_analysis import automatic_analysis, cache_analysis
+from kardiaos.automatic_analysis import automatic_analysis, cache_analysis, cached_analysis
 from kardiaos.landmark_editor import LandmarkEditor
 from kardiaos.landmark_review import save_review, set_review_active, validate_points
 from kardiaos.preview import PrintPreview
+from kardiaos.paper import screen_key
 from kardiaos.recording import load_recording, save_recording
 from kardiaos.report import page_plan, pdf_bytes
 from test_analysis_dialog import wait
@@ -24,6 +26,12 @@ def apply(record, result, points):
     state = result['measurements']['landmark_review']
     save_review(record, state, points, dict.fromkeys(points, 'I'))
     return automatic_analysis(record)
+
+
+def wheel(plot, pos, angle=0, pixels=0):
+    event = QWheelEvent(pos, plot.mapToGlobal(pos), QPoint(0, pixels), QPoint(0, angle),
+                        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.ScrollUpdate, False)
+    QApplication.sendEvent(plot, event)
 
 
 def test_revised_qrs_classifies_recomputes_and_survives_reopening(tmp_path):
@@ -123,9 +131,9 @@ def test_editor_controls_reanalysis_and_print_source(qt_application, tmp_path, m
         editor.dispersion.click()
         assert editor.dispersion.isChecked() and not editor.plot.grab().isNull()
         editor.clear.click(); assert 'qon' not in editor.points
-        box = editor.plot.graph(); lo, hi = editor.plot.domain()
-        x = round(box.left()+(83-lo)*box.width()/(hi-lo))
-        QTest.mouseClick(editor.plot, Qt.MouseButton.LeftButton, pos=QPoint(x, round(box.center().y())))
+        pos = editor.plot.view_transform().map(QPointF(83, 0))
+        wheel(editor.plot, pos, angle=1200)
+        QTest.mouseClick(editor.plot, Qt.MouseButton.LeftButton, pos=pos.toPoint())
         QTest.keyClick(editor.plot, Qt.Key.Key_Right)
         assert editor.points['qon'] == 84 and editor.point_leads['qon'] == 'II'
         editor.table.selectRow(3); editor.place(126); editor.apply_button.click()
@@ -162,4 +170,93 @@ def test_editor_controls_reanalysis_and_print_source(qt_application, tmp_path, m
     assert main.recording is not r and main.recording.meta['landmark_reviews']['six'] == saved
     direct = PdfReader(io.BytesIO(main.report())).pages[0].extract_text()
     assert 'Marcos revisados manualmente' in direct and 'QRS: 140 ms' in direct
+    main.close()
+
+
+def test_zoom_starts_at_paper_scale_and_keeps_both_cursor_coordinates(qt_application, tmp_path):
+    main = window(tmp_path)
+    key = screen_key(main.screen())
+    main.settings.setValue(f'screens/{key}/x', 4.5)
+    main.settings.setValue(f'screens/{key}/y', 3.75)
+    main.load_screen()
+    main.speed.setCurrentIndex(main.speed.findData(50)); main.gain.setCurrentIndex(main.gain.findData(20))
+    auto = automatic_analysis(signal_record())
+    editor = LandmarkEditor(auto, main, main.paper)
+    editor.show(); qt_application.processEvents()
+    plot = editor.plot
+    before = plot.view_transform()
+    assert editor.zoom_label.text() == '100%'
+    assert before.m11() == pytest.approx(main.paper.speed*main.paper.ppmx/300)
+    assert -before.m22() == pytest.approx(main.paper.gain*main.paper.ppmy)
+    points = dict(editor.points)
+    marker = QPointF(points['pon'], .12)
+    cursor = before.map(marker)
+    assert plot.graph().contains(before.map(QPointF(0, 0)))
+    assert plot.graph().contains(before.map(QPointF(editor.state['length']-1, 0)))
+    wheel(plot, cursor, angle=120)
+    assert plot.zoom > 1 and (plot.view_transform().map(marker)-cursor).manhattanLength() < 1e-8
+    other = QPointF(points['qoff'], .3)
+    cursor = plot.view_transform().map(other)
+    wheel(plot, cursor, pixels=60)
+    enlarged = plot.view_transform()
+    assert enlarged.m11() > before.m11()*1.3
+    assert (enlarged.map(other)-cursor).manhattanLength() < 1e-8
+    editor.table.selectRow(3); editor.lead.setCurrentIndex(1); editor.dispersion.click()
+    assert plot.view_transform() == enlarged
+    wheel(plot, cursor, angle=-360)
+    assert plot.zoom < 1 and (plot.view_transform().map(other)-cursor).manhattanLength() < 1e-8
+    for delta in (12000, -12000):
+        for _ in range(3): wheel(plot, cursor, angle=delta)
+        assert plot.zoom == (32. if delta > 0 else .25)
+        assert not plot.grab().isNull()
+    assert points == editor.points
+    editor.lead.setCurrentIndex(0); editor.original_size.click()
+    assert editor.zoom_label.text() == '100%' and plot.view_transform() == before
+    editor.close(); main.close()
+
+
+@pytest.mark.parametrize('source', ['cached', 'on_demand', 'in_flight'])
+def test_main_button_opens_editor_directly_and_recalculates(source, qt_application, tmp_path, monkeypatch):
+    main = window(tmp_path)
+    assert main.landmark_button.isVisible() and not main.landmark_button.isEnabled()
+    main.autorun.setChecked(False)
+    record = signal_record()
+    if source == 'on_demand': record.meta['end'] = None
+    attach(main, record)
+    if source == 'cached':
+        main.background_result(record, automatic_analysis(record))
+    elif source == 'in_flight':
+        main.start_background_analysis()
+        worker = main._analysis_thread
+    seen = []
+    real_exec = LandmarkEditor.exec
+    def confirm(editor):
+        assert editor.parentWidget() is main and editor.zoom_label.text() == '100%'
+        editor.table.selectRow(3); editor.forward.click()
+        seen.append(editor.points['qoff'])
+        QTimer.singleShot(0, editor, editor.apply_button.click)
+        return real_exec(editor)
+    monkeypatch.setattr(LandmarkEditor, 'exec', confirm)
+    assert main.landmark_button.isEnabled()
+    main.landmark_button.click()
+    if source != 'cached':
+        assert not main.landmark_button.isEnabled()
+    if source == 'in_flight':
+        assert main._analysis_thread is worker and not worker.isInterruptionRequested()
+    wait(qt_application, lambda: bool(seen) and main.dirty and cached_analysis(record) is not None
+         and not main._analysis_thread.isRunning() and not main._analysis_timer.isActive())
+    current = cached_analysis(record)['measurements']
+    assert current['landmark_review']['origin'] == 'manual'
+    assert seen == [current['global_fiducials']['qoff']] and main.landmark_button.isEnabled()
+    main.dirty = False; main.close()
+
+
+def test_short_capture_leaves_editor_closed_and_explains_why(qt_application, tmp_path, monkeypatch):
+    main = window(tmp_path); main.autorun.setChecked(False)
+    attach(main, signal_record(seconds=4))
+    opened = []
+    monkeypatch.setattr(LandmarkEditor, 'exec', lambda _: opened.append(True))
+    main.landmark_button.click()
+    wait(qt_application, lambda: '10 s' in main.statusBar().currentMessage() and not main._analysis_thread.isRunning())
+    assert not opened and main.landmark_button.isEnabled()
     main.close()

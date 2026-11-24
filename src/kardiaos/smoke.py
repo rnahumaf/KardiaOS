@@ -82,28 +82,61 @@ def check_research():
 
 
 def check_landmark_review(record, analysis):
+    from PySide6.QtCore import QPoint, QPointF, Qt, QTimer
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
     from .automatic_analysis import automatic_analysis
     from .landmark_editor import KEYS, LandmarkEditor
-    from .landmark_review import save_review
     from .processing import snapshot
     from .signal import FS
 
-    editor = LandmarkEditor(analysis)
-    editor.table.selectRow(KEYS.index('qoff'))
-    editor.dispersion.setChecked(True)
-    automatic_points = editor.state['automatic_points']
-    editor.forward.click()
-    assert editor.points['qoff'] == automatic_points['qoff'] + 1
-    assert editor.apply_button.isEnabled() and not editor.plot.grab().isNull()
-    editor.apply_button.click()
+    automatic_points = analysis['measurements']['landmark_review']['automatic_points']
+    errors = []
+    def adjust():
+        editor = QApplication.activeModalWidget()
+        try:
+            assert isinstance(editor, LandmarkEditor) and editor.parentWidget() is main
+            plot = editor.plot
+            assert plot.zoom == 1. and editor.zoom_label.text() == '100%'
+            editor.table.selectRow(KEYS.index('qoff'))
+            editor.dispersion.setChecked(True)
+            target = QPointF(automatic_points['qoff'], 0)
+            cursor = plot.view_transform().map(target)
+            wheel = QWheelEvent(cursor, plot.mapToGlobal(cursor), QPoint(), QPoint(0, 120),
+                                Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.ScrollUpdate, False)
+            QApplication.sendEvent(plot, wheel)
+            assert plot.zoom > 1. and (plot.view_transform().map(target)-cursor).manhattanLength() < 1e-8
+            assert editor.points == automatic_points and not plot.grab().isNull()
+            editor.original_size.click()
+            assert plot.zoom == 1.
+            editor.forward.click()
+            assert editor.points['qoff'] == automatic_points['qoff'] + 1 and editor.apply_button.isEnabled()
+            editor.apply_button.click()
+        except Exception as exc:
+            errors.append(exc)
+            if editor is not None: editor.reject()
+
     with tempfile.TemporaryDirectory(prefix='kardiaos-synthetic-') as folder:
+        main = Window(demo=True, settings=QSettings(str(Path(folder)/'prefs.ini'), QSettings.Format.IniFormat))
+        main.tick_timer.stop()
+        capture = snapshot(record)
+        main.recording = main.paper.recording = capture
+        main.paper.cursor = capture.last_time
+        main.update_buttons(); main.background_result(capture, analysis)
+        main.show(); QApplication.processEvents()
         path = Path(folder) / 'review.kardia'
-        copy = snapshot(record)
-        save_review(copy, editor.state, editor.points, editor.point_leads)
-        save_recording(path, copy)
+        try:
+            assert main.landmark_button.isVisible() and main.landmark_button.isEnabled()
+            QTimer.singleShot(0, adjust)
+            main.landmark_button.click()
+            if errors: raise errors[0]
+            assert main.dirty
+            save_recording(path, capture)
+        finally:
+            main._analysis_timer.stop(); main.dirty = False; main.close()
         reopened = load_recording(path)
     reviewed = automatic_analysis(reopened)
-    expected_ms = round((editor.points['qoff'] - editor.points['qon']) * 1000 / FS, 1)
+    expected_ms = round((automatic_points['qoff']+1 - automatic_points['qon']) * 1000 / FS, 1)
     metrics = reviewed['measurements']['metrics']
     assert metrics['qrs_duration']['value'] == expected_ms
     preview = OfflinePreview(reopened, analysis=reviewed, autostart=False)
@@ -171,4 +204,4 @@ def check_automatic():
     normal=automatic_analysis(record);assert not normal['scenarios'] and normal['classification']
     assert normal['qt']['source']=='global_medians_only'
     assert not render_page(pdf_bytes(record,layout='di',analysis=normal)).isNull()
-    return dict(analysis_and_ui_seconds=round(elapsed,3), landmark_review_roundtrip=True)
+    return dict(analysis_and_ui_seconds=round(elapsed,3), landmark_review_roundtrip=True, home_review_cursor_zoom=True)

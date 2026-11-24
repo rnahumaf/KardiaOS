@@ -132,13 +132,17 @@ class ECGPaper(QWidget):
         p.end()
 
 
-def screen_geometry(screen):
+def screen_geometry(screen, settings=None):
     size = screen.physicalSize()
     rect = screen.geometry()
     if size.width() > 10 and size.height() > 10:
-        return rect.width() / size.width(), rect.height() / size.height()
-    fallback = screen.logicalDotsPerInch() / 25.4
-    return fallback, fallback
+        x, y = rect.width() / size.width(), rect.height() / size.height()
+    else:
+        x = y = screen.logicalDotsPerInch() / 25.4
+    if settings is None:
+        return x, y
+    key = screen_key(screen)
+    return float(settings.value(f"screens/{key}/x", x)), float(settings.value(f"screens/{key}/y", y))
 
 
 def screen_key(screen):
